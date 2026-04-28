@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-const std::string DEFAULT_INSTANCE_PATH = "C:/Vis/CFLP/cap41_ss.txt";
+const std::string DEFAULT_INSTANCE_NAME = "cap41_ss.txt";
 
 struct Problem {
     int facilities = 0;
@@ -39,9 +39,13 @@ void print_problem_checks(const Problem& problem);
 Solution random_solution(const Problem& problem, std::mt19937& rng);
 Solution greedy_solution(const Problem& problem);
 
-int main() {
+int main(int argc, char* argv[]) {
     try {
-        const std::string path = DEFAULT_INSTANCE_PATH;
+        std::string path = DEFAULT_INSTANCE_NAME;
+        if (argc > 1) {
+            path = argv[1];
+        }
+
         Problem problem = load_problem(path);
         std::mt19937 rng(static_cast<unsigned int>(std::time(nullptr)));
         Solution random = random_solution(problem, rng);
