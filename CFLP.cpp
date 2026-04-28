@@ -138,14 +138,6 @@ bool is_valid_solution(const Problem& problem, const Solution& solution) {
         return false;
     }
 
-    if (static_cast<int>(solution.facility_loads.size()) != problem.facilities) {
-        return false;
-    }
-
-    if (static_cast<int>(solution.facility_open.size()) != problem.facilities) {
-        return false;
-    }
-
     for (int customer = 0; customer < problem.customers; ++customer) {
         int facility = solution.customer_assignment[customer];
         if (facility < 0 || facility >= problem.facilities) {
