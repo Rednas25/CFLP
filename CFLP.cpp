@@ -28,6 +28,11 @@ struct Solution {
     double objective_value = -1.0;
 };
 
+struct EAConfig {
+    int pop_size = 100;
+    int tour_size = 5;
+};
+
 Problem load_problem(const std::string& path);
 std::string name_from_path(const std::string& path);
 void print_problem(const Problem& problem);
@@ -38,6 +43,10 @@ void print_solution(const Solution& solution);
 void print_problem_checks(const Problem& problem);
 Solution random_solution(const Problem& problem, std::mt19937& rng);
 Solution greedy_solution(const Problem& problem);
+std::vector<Solution> initialize_population(const Problem& problem, const EAConfig& config, std::mt19937& rng);
+int tournament_selection(const std::vector<Solution>& population, int tournament_size, std::mt19937& rng);
+void print_population_summary(const std::vector<Solution>& population);
+void print_tournament_selection_demo(const std::vector<Solution>& population, int tournament_size, std::mt19937& rng);
 
 int main(int argc, char* argv[]) {
     try {
@@ -46,10 +55,12 @@ int main(int argc, char* argv[]) {
             path = argv[1];
         }
 
+        const EAConfig ea_config;
         Problem problem = load_problem(path);
         std::mt19937 rng(static_cast<unsigned int>(std::time(nullptr)));
         Solution random = random_solution(problem, rng);
         Solution greedy = greedy_solution(problem);
+        std::vector<Solution> population = initialize_population(problem, ea_config, rng);
 
         std::cout << "Instancja: " << name_from_path(path) << "\n\n";
         print_problem(problem);
@@ -61,6 +72,9 @@ int main(int argc, char* argv[]) {
         std::cout << "\nZachlanne rozwiazanie:\n";
         print_solution(greedy);
         std::cout << "objective_value: " << greedy.objective_value << '\n';
+        std::cout << '\n';
+        print_population_summary(population);
+        print_tournament_selection_demo(population, ea_config.tour_size, rng);
     } catch (const std::exception& error) {
         std::cerr << "Blad: " << error.what() << '\n';
         return 1;
@@ -385,4 +399,57 @@ Solution greedy_solution(const Problem& problem) {
 
     solution.objective_value = evaluate_solution(problem, solution);
     return solution;
+}
+
+std::vector<Solution> initialize_population(const Problem& problem, const EAConfig& config, std::mt19937& rng) {
+    std::vector<Solution> population;
+    population.reserve(config.pop_size);
+
+    while (static_cast<int>(population.size()) < config.pop_size) {
+        population.push_back(random_solution(problem, rng));
+    }
+
+    return population;
+}
+
+int tournament_selection(const std::vector<Solution>& population, int tournament_size, std::mt19937& rng) {
+    std::uniform_int_distribution<int> index_draw(0, static_cast<int>(population.size()) - 1);
+    int best_index = index_draw(rng);
+
+    for (int i = 1; i < tournament_size; ++i) {
+        int candidate_index = index_draw(rng);
+        if (population[candidate_index].objective_value < population[best_index].objective_value) {
+            best_index = candidate_index;
+        }
+    }
+
+    return best_index;
+}
+
+void print_population_summary(const std::vector<Solution>& population) {
+    std::cout << "Populacja startowa EA: " << population.size() << '\n';
+}
+
+void print_tournament_selection_demo(const std::vector<Solution>& population, int tournament_size, std::mt19937& rng) {
+    std::uniform_int_distribution<int> index_draw(0, static_cast<int>(population.size()) - 1);
+    std::vector<int> drawn_indexes;
+    drawn_indexes.reserve(tournament_size);
+
+    int best_index = -1;
+
+    for (int i = 0; i < tournament_size; ++i) {
+        int index = index_draw(rng);
+        drawn_indexes.push_back(index);
+
+        if (best_index == -1 || population[index].objective_value < population[best_index].objective_value) {
+            best_index = index;
+        }
+    }
+
+    std::cout << "Turniej selekcji:\n";
+    for (int index : drawn_indexes) {
+        std::cout << "Osobnik " << index << ": objective_value = " << population[index].objective_value << '\n';
+    }
+    std::cout << "Wybrany osobnik: " << best_index
+              << " with objective_value = " << population[best_index].objective_value << '\n';
 }
