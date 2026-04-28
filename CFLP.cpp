@@ -241,24 +241,25 @@ void print_solution(const Solution& solution) {
 
     std::cout << "Obciazenia magazynow: ";
     for (int facility = 0; facility < static_cast<int>(solution.facility_loads.size()); ++facility) {
+        if (!solution.facility_open[facility]) {
+            continue;
+        }
         std::cout << "[" << facility << ": " << solution.facility_loads[facility] << "] ";
     }
     std::cout << '\n';
 
     std::cout << "Przypisania per magazyn:\n";
     for (int facility = 0; facility < static_cast<int>(solution.facility_open.size()); ++facility) {
+        if (!solution.facility_open[facility]) {
+            continue;
+        }
+
         std::cout << "M" << facility << ": ";
 
-        bool has_customer = false;
         for (int customer = 0; customer < static_cast<int>(solution.customer_assignment.size()); ++customer) {
             if (solution.customer_assignment[customer] == facility) {
                 std::cout << "K" << customer << ' ';
-                has_customer = true;
             }
-        }
-
-        if (!has_customer) {
-            std::cout << "-";
         }
         std::cout << '\n';
     }
@@ -328,23 +329,18 @@ Solution random_solution(const Problem& problem, std::mt19937& rng) {
                 break;
             }
 
-            std::uniform_int_distribution<int> distribution(
-                0,
-                static_cast<int>(feasible_facilities.size()) - 1
-            );
+            std::uniform_int_distribution<int> distribution(0,static_cast<int>(feasible_facilities.size()) - 1);
             int chosen_facility = feasible_facilities[distribution(rng)];
 
             solution.customer_assignment[customer] = chosen_facility;
             remaining_capacity[chosen_facility] -= problem.demands[customer];
         }
 
-        if (!success) {
-            continue;
-        }
-
-        solution.objective_value = evaluate_solution(problem, solution);
-        if (is_valid_solution(problem, solution)) {
-            return solution;
+        if (success) {
+            solution.objective_value = evaluate_solution(problem, solution);
+            if (is_valid_solution(problem, solution)) {
+                return solution;
+            }
         }
     }
 
@@ -451,5 +447,5 @@ void print_tournament_selection_demo(const std::vector<Solution>& population, in
         std::cout << "Osobnik " << index << ": objective_value = " << population[index].objective_value << '\n';
     }
     std::cout << "Wybrany osobnik: " << best_index
-              << " with objective_value = " << population[best_index].objective_value << '\n';
+              << " z objective_value = " << population[best_index].objective_value << '\n';
 }
