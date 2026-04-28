@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -11,6 +12,7 @@
 #include <vector>
 
 const std::string DEFAULT_INSTANCE_NAME = "cap41_ss.txt";
+const int RANDOM_RUNS = 10000;
 
 struct Problem {
     int facilities = 0;
@@ -29,8 +31,19 @@ struct Solution {
 };
 
 struct EAConfig {
-    int pop_size = 100;
-    int tour_size = 5;
+    int pop_size = 50;
+    int gen = 600;
+    int tour_size = 7;
+    double mutation_pro = 0.02;
+    double cross_pro = 0.8;
+    double better_parent_bias = 0.50;
+};
+
+struct Stats {
+    double best = 0.0;
+    double worst = 0.0;
+    double avg = 0.0;
+    double std = 0.0;
 };
 
 Problem load_problem(const std::string& path);
@@ -39,14 +52,26 @@ void print_problem(const Problem& problem);
 void update_solution_state(const Problem& problem, Solution& solution);
 bool is_valid_solution(const Problem& problem, const Solution& solution);
 double evaluate_solution(const Problem& problem, Solution& solution);
+Stats calculate_stats(const std::vector<double>& values);
+std::vector<double> population_scores(const std::vector<Solution>& population);
 void print_solution(const Solution& solution);
-void print_problem_checks(const Problem& problem);
+void print_stats(const std::string& name, const Stats& stats);
 Solution random_solution(const Problem& problem, std::mt19937& rng);
 Solution greedy_solution(const Problem& problem);
 std::vector<Solution> initialize_population(const Problem& problem, const EAConfig& config, std::mt19937& rng);
 int tournament_selection(const std::vector<Solution>& population, int tournament_size, std::mt19937& rng);
+Solution evolutionary_algorithm(const Problem& problem, const EAConfig& config, std::mt19937& rng);
 void print_population_summary(const std::vector<Solution>& population);
-void print_tournament_selection_demo(const std::vector<Solution>& population, int tournament_size, std::mt19937& rng);
+bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& rng);
+void mutate_customer(const Problem& problem, Solution& solution, int customer, std::mt19937& rng);
+void mutate_solution(const Problem& problem, Solution& solution, std::mt19937& rng, double mutation_probability);
+Solution crossover(
+    const Problem& problem,
+    const Solution& parent1,
+    const Solution& parent2,
+    double better_parent_bias,
+    std::mt19937& rng
+);
 
 int main(int argc, char* argv[]) {
     try {
@@ -55,26 +80,67 @@ int main(int argc, char* argv[]) {
             path = argv[1];
         }
 
-        const EAConfig ea_config;
         Problem problem = load_problem(path);
-        std::mt19937 rng(static_cast<unsigned int>(std::time(nullptr)));
-        Solution random = random_solution(problem, rng);
-        Solution greedy = greedy_solution(problem);
-        std::vector<Solution> population = initialize_population(problem, ea_config, rng);
-
+        std::mt19937 rng(std::random_device{}());
         std::cout << "Instancja: " << name_from_path(path) << "\n\n";
         print_problem(problem);
         std::cout << '\n';
-        print_problem_checks(problem);
-        std::cout << "\nLosowe rozwiazanie:\n";
-        print_solution(random);
-        std::cout << "objective_value: " << random.objective_value << '\n';
-        std::cout << "\nZachlanne rozwiazanie:\n";
-        print_solution(greedy);
-        std::cout << "objective_value: " << greedy.objective_value << '\n';
+        std::cout << "Wybor algorytmu:\n";
+        std::cout << "1. algorytm losowy\n";
+        std::cout << "2. algorytm zachlanny\n";
+        std::cout << "3. algorytm ewolucyjny\n";
+        std::cout << "wybor: ";
+
+        int method = 0;
+        std::cin >> method;
         std::cout << '\n';
-        print_population_summary(population);
-        print_tournament_selection_demo(population, ea_config.tour_size, rng);
+
+        switch (method) {
+            case 1: {
+                std::vector<double> results;
+                results.reserve(RANDOM_RUNS);
+                Solution best_random;
+                bool has_best_solution = false;
+
+                for (int run = 0; run < RANDOM_RUNS; ++run) {
+                    Solution current_solution = random_solution(problem, rng);
+                    results.push_back(current_solution.objective_value);
+
+                    if (!has_best_solution || current_solution.objective_value < best_random.objective_value) {
+                        best_random = current_solution;
+                        has_best_solution = true;
+                    }
+                }
+
+                Stats stats = calculate_stats(results);
+                print_stats("Wyniki algorytmu losowego:", stats);
+                std::cout << "Liczba uruchomien: " << RANDOM_RUNS << '\n';
+                std::cout << "Najlepsze rozwiazanie:\n";
+                print_solution(best_random);
+                std::cout << "objective_value: " << best_random.objective_value << '\n';
+                return 0;
+            }
+
+            case 2: {
+                Solution greedy = greedy_solution(problem);
+                std::cout << "Rozwiazanie zachlanne:\n";
+                print_solution(greedy);
+                std::cout << "objective_value: " << greedy.objective_value << '\n';
+                return 0;
+            }
+
+            case 3: {
+                const EAConfig ea_config;
+                Solution best = evolutionary_algorithm(problem, ea_config, rng);
+                std::cout << "Rozwiazanie algorytmu ewolucyjnego:\n";
+                print_solution(best);
+                std::cout << "objective_value: " << best.objective_value << '\n';
+                return 0;
+            }
+
+            default:
+                throw std::runtime_error("Niepoprawny wybor algorytmu.");
+        }
     } catch (const std::exception& error) {
         std::cerr << "Blad: " << error.what() << '\n';
         return 1;
@@ -197,6 +263,45 @@ double evaluate_solution(const Problem& problem, Solution& solution) {
     return total_cost;
 }
 
+Stats calculate_stats(const std::vector<double>& values) {
+    Stats stats;
+    if (values.empty()) {
+        return stats;
+    }
+
+    stats.best = values[0];
+    stats.worst = values[0];
+
+    double sum = 0.0;
+    for (double value : values) {
+        stats.best = std::min(stats.best, value);
+        stats.worst = std::max(stats.worst, value);
+        sum += value;
+    }
+
+    stats.avg = sum / static_cast<double>(values.size());
+
+    double squared_diff_sum = 0.0;
+    for (double value : values) {
+        double diff = value - stats.avg;
+        squared_diff_sum += diff * diff;
+    }
+
+    stats.std = std::sqrt(squared_diff_sum / static_cast<double>(values.size()));
+    return stats;
+}
+
+std::vector<double> population_scores(const std::vector<Solution>& population) {
+    std::vector<double> scores;
+    scores.reserve(population.size());
+
+    for (const Solution& solution : population) {
+        scores.push_back(solution.objective_value);
+    }
+
+    return scores;
+}
+
 void print_problem(const Problem& problem) {
     std::cout << "Liczba magazynow: " << problem.facilities << '\n';
     std::cout << "Liczba klientow:  " << problem.customers << "\n\n";
@@ -265,38 +370,12 @@ void print_solution(const Solution& solution) {
     }
 }
 
-void print_problem_checks(const Problem& problem) {
-    int total_capacity = 0;
-    int total_demand = 0;
-    int max_capacity = 0;
-
-    for (int facility = 0; facility < problem.facilities; ++facility) {
-        total_capacity += problem.capacities[facility];
-        max_capacity = std::max(max_capacity, problem.capacities[facility]);
-    }
-
-    std::vector<int> oversized_customers;
-    for (int customer = 0; customer < problem.customers; ++customer) {
-        total_demand += problem.demands[customer];
-        if (problem.demands[customer] > max_capacity) {
-            oversized_customers.push_back(customer);
-        }
-    }
-
-    std::cout << "Kontrola danych:\n";
-    std::cout << "Suma pojemnosci: " << total_capacity << '\n';
-    std::cout << "Suma popytow:    " << total_demand << '\n';
-    std::cout << "Max capacity:    " << max_capacity << '\n';
-
-    if (oversized_customers.empty()) {
-        return;
-    }
-
-    std::cout << "Uwaga: sa klienci wieksi niz pojemnosc pojedynczego magazynu: ";
-    for (int customer : oversized_customers) {
-        std::cout << "K" << customer << "(" << problem.demands[customer] << ") ";
-    }
-    std::cout << '\n';
+void print_stats(const std::string& name, const Stats& stats) {
+    std::cout << name << '\n';
+    std::cout << "best:  " << stats.best << '\n';
+    std::cout << "worst: " << stats.worst << '\n';
+    std::cout << "avg:   " << stats.avg << '\n';
+    std::cout << "std:   " << stats.std << '\n';
 }
 
 Solution random_solution(const Problem& problem, std::mt19937& rng) {
@@ -422,30 +501,208 @@ int tournament_selection(const std::vector<Solution>& population, int tournament
     return best_index;
 }
 
+Solution evolutionary_algorithm(const Problem& problem, const EAConfig& config, std::mt19937& rng) {
+    std::vector<Solution> population = initialize_population(problem, config, rng);
+    Solution best = population[0];
+
+    for (const Solution& solution : population) {
+        if (solution.objective_value < best.objective_value) {
+            best = solution;
+        }
+    }
+
+    std::uniform_real_distribution<double> probability_draw(0.0, 1.0);
+
+    for (int generation = 0; generation < config.gen; ++generation) {
+        Stats current_stats = calculate_stats(population_scores(population));
+        std::cout << "Gen. " << generation + 1
+                  << ", Best: " << current_stats.best
+                  << ", Avg: " << current_stats.avg
+                  << ", Worst: " << current_stats.worst << '\n';
+
+        std::vector<Solution> next_population;
+        next_population.reserve(config.pop_size);
+
+        while (static_cast<int>(next_population.size()) < config.pop_size) {
+            int parent1_index = tournament_selection(population, config.tour_size, rng);
+            int parent2_index = tournament_selection(population, config.tour_size, rng);
+
+            while (parent2_index == parent1_index) {
+                parent2_index = tournament_selection(population, config.tour_size, rng);
+            }
+
+            Solution child;
+            if (probability_draw(rng) < config.cross_pro) {
+                child = crossover(
+                    problem,
+                    population[parent1_index],
+                    population[parent2_index],
+                    config.better_parent_bias,
+                    rng
+                );
+            } else {
+                child = population[parent1_index];
+            }
+
+            mutate_solution(problem, child, rng, config.mutation_pro);
+            child.objective_value = evaluate_solution(problem, child);
+            next_population.push_back(child);
+
+            if (child.objective_value < best.objective_value) {
+                best = child;
+            }
+        }
+
+        population = next_population;
+    }
+
+    return best;
+}
+
 void print_population_summary(const std::vector<Solution>& population) {
     std::cout << "Populacja startowa EA: " << population.size() << '\n';
 }
 
-void print_tournament_selection_demo(const std::vector<Solution>& population, int tournament_size, std::mt19937& rng) {
-    std::uniform_int_distribution<int> index_draw(0, static_cast<int>(population.size()) - 1);
-    std::vector<int> drawn_indexes;
-    drawn_indexes.reserve(tournament_size);
+bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& rng) {
+    update_solution_state(problem, solution);
 
-    int best_index = -1;
+    const int max_repairs = problem.customers * problem.facilities;
 
-    for (int i = 0; i < tournament_size; ++i) {
-        int index = index_draw(rng);
-        drawn_indexes.push_back(index);
+    for (int step = 0; step < max_repairs; ++step) {
+        int overloaded_facility = -1;
 
-        if (best_index == -1 || population[index].objective_value < population[best_index].objective_value) {
-            best_index = index;
+        for (int facility = 0; facility < problem.facilities; ++facility) {
+            if (solution.facility_loads[facility] > problem.capacities[facility]) {
+                overloaded_facility = facility;
+                break;
+            }
+        }
+
+        if (overloaded_facility == -1) {
+            solution.objective_value = evaluate_solution(problem, solution);
+            return is_valid_solution(problem, solution);
+        }
+
+        std::vector<int> facility_customers;
+        for (int customer = 0; customer < problem.customers; ++customer) {
+            if (solution.customer_assignment[customer] == overloaded_facility) {
+                facility_customers.push_back(customer);
+            }
+        }
+
+        if (facility_customers.empty()) {
+            return false;
+        }
+
+        std::shuffle(facility_customers.begin(), facility_customers.end(), rng);
+
+        bool repaired_step = false;
+
+        for (int customer : facility_customers) {
+            std::vector<int> candidate_facilities;
+
+            for (int facility = 0; facility < problem.facilities; ++facility) {
+                if (facility == overloaded_facility) {
+                    continue;
+                }
+
+                if (solution.facility_loads[facility] + problem.demands[customer] <= problem.capacities[facility]) {
+                    candidate_facilities.push_back(facility);
+                }
+            }
+
+            if (candidate_facilities.empty()) {
+                continue;
+            }
+
+            std::uniform_int_distribution<int> distribution(0, static_cast<int>(candidate_facilities.size()) - 1);
+            int new_facility = candidate_facilities[distribution(rng)];
+            solution.customer_assignment[customer] = new_facility;
+            update_solution_state(problem, solution);
+            repaired_step = true;
+            break;
+        }
+
+        if (!repaired_step) {
+            return false;
         }
     }
 
-    std::cout << "Turniej selekcji:\n";
-    for (int index : drawn_indexes) {
-        std::cout << "Osobnik " << index << ": objective_value = " << population[index].objective_value << '\n';
+    return false;
+}
+
+void mutate_customer(const Problem& problem, Solution& solution, int customer, std::mt19937& rng) {
+    int current_facility = solution.customer_assignment[customer];
+
+    std::vector<int> candidate_facilities;
+    for (int facility = 0; facility < problem.facilities; ++facility) {
+        if (facility != current_facility) {
+            candidate_facilities.push_back(facility);
+        }
     }
-    std::cout << "Wybrany osobnik: " << best_index
-              << " z objective_value = " << population[best_index].objective_value << '\n';
+
+    if (candidate_facilities.empty()) {
+        return;
+    }
+
+    std::uniform_int_distribution<int> distribution(0, static_cast<int>(candidate_facilities.size()) - 1);
+    int new_facility = candidate_facilities[distribution(rng)];
+
+    Solution original_solution = solution;
+    solution.customer_assignment[customer] = new_facility;
+
+    if (!repair_solution(problem, solution, rng)) {
+        solution = original_solution;
+        solution.objective_value = evaluate_solution(problem, solution);
+    }
+}
+
+void mutate_solution(const Problem& problem, Solution& solution, std::mt19937& rng, double mutation_probability) {
+    std::uniform_real_distribution<double> probability_draw(0.0, 1.0);
+
+    for (int customer = 0; customer < problem.customers; ++customer) {
+        if (probability_draw(rng) < mutation_probability) {
+            mutate_customer(problem, solution, customer, rng);
+        }
+    }
+
+    solution.objective_value = evaluate_solution(problem, solution);
+}
+
+Solution crossover(
+    const Problem& problem,
+    const Solution& parent1,
+    const Solution& parent2,
+    double better_parent_bias,
+    std::mt19937& rng
+) {
+    const Solution* better_parent = &parent1;
+    const Solution* worse_parent = &parent2;
+
+    if (parent2.objective_value < parent1.objective_value) {
+        better_parent = &parent2;
+        worse_parent = &parent1;
+    }
+
+    Solution child;
+    child.customer_assignment.assign(problem.customers, -1);
+
+    std::uniform_real_distribution<double> probability_draw(0.0, 1.0);
+
+    for (int customer = 0; customer < problem.customers; ++customer) {
+        if (probability_draw(rng) < better_parent_bias) {
+            child.customer_assignment[customer] = better_parent->customer_assignment[customer];
+        } else {
+            child.customer_assignment[customer] = worse_parent->customer_assignment[customer];
+        }
+    }
+
+    if (!repair_solution(problem, child, rng)) {
+        child = *better_parent;
+        child.objective_value = evaluate_solution(problem, child);
+        return child;
+    }
+
+    child.objective_value = evaluate_solution(problem, child);
+    return child;
 }
