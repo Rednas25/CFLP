@@ -13,6 +13,7 @@
 
 const std::string DEFAULT_INSTANCE_NAME = "cap41_ss.txt";
 const int RANDOM_RUNS = 10000;
+const int EA_RUNS = 10;
 
 struct Problem {
     int facilities = 0;
@@ -31,11 +32,11 @@ struct Solution {
 };
 
 struct EAConfig {
-    int pop_size = 50;
-    int gen = 600;
-    int tour_size = 7;
+    int pop_size = 80;
+    int gen = 375;
+    int tour_size = 5;
     double mutation_pro = 0.02;
-    double cross_pro = 0.8;
+    double cross_pro = 0.7;
     double better_parent_bias = 0.50;
 };
 
@@ -54,6 +55,7 @@ bool is_valid_solution(const Problem& problem, const Solution& solution);
 double evaluate_solution(const Problem& problem, Solution& solution);
 Stats calculate_stats(const std::vector<double>& values);
 std::vector<double> population_scores(const std::vector<Solution>& population);
+void print_solution(const std::string& name, const Solution& solution);
 void print_solution(const Solution& solution);
 void print_stats(const std::string& name, const Stats& stats);
 Solution random_solution(const Problem& problem, std::mt19937& rng);
@@ -115,26 +117,51 @@ int main(int argc, char* argv[]) {
                 Stats stats = calculate_stats(results);
                 print_stats("Wyniki algorytmu losowego:", stats);
                 std::cout << "Liczba uruchomien: " << RANDOM_RUNS << '\n';
-                std::cout << "Najlepsze rozwiazanie:\n";
-                print_solution(best_random);
-                std::cout << "objective_value: " << best_random.objective_value << '\n';
+                print_solution("Najlepsze rozwiazanie:", best_random);
                 return 0;
             }
 
             case 2: {
                 Solution greedy = greedy_solution(problem);
-                std::cout << "Rozwiazanie zachlanne:\n";
-                print_solution(greedy);
-                std::cout << "objective_value: " << greedy.objective_value << '\n';
+                print_solution("Rozwiazanie zachlanne:", greedy);
                 return 0;
             }
 
             case 3: {
                 const EAConfig ea_config;
-                Solution best = evolutionary_algorithm(problem, ea_config, rng);
-                std::cout << "Rozwiazanie algorytmu ewolucyjnego:\n";
-                print_solution(best);
-                std::cout << "objective_value: " << best.objective_value << '\n';
+                std::vector<double> results;
+                results.reserve(EA_RUNS);
+                Solution best_overall;
+                bool has_best_solution = false;
+
+                std::cout << "EA config:\n";
+                std::cout << "pop_size: " << ea_config.pop_size << '\n';
+                std::cout << "gen: " << ea_config.gen << '\n';
+                std::cout << "Px: " << ea_config.cross_pro << '\n';
+                std::cout << "Pm: " << ea_config.mutation_pro << '\n';
+                std::cout << "Tour: " << ea_config.tour_size << '\n';
+                std::cout << "EA runs: " << EA_RUNS << "\n\n";
+
+                for (int run = 1; run <= EA_RUNS; ++run) {
+                    std::cout << "========== RUN " << run << " ===========\n\n";
+
+                    Solution best = evolutionary_algorithm(problem, ea_config, rng);
+                    results.push_back(best.objective_value);
+
+                    if (!has_best_solution || best.objective_value < best_overall.objective_value) {
+                        best_overall = best;
+                        has_best_solution = true;
+                    }
+
+                    print_solution("Najlepszy osobnik EA:", best);
+                    std::cout << '\n';
+                }
+
+                Stats stats = calculate_stats(results);
+                print_stats("Podsumowanie EA:", stats);
+                std::cout << '\n';
+
+                print_solution("Najlepszy osobnik EA ze wszystkich runow:", best_overall);
                 return 0;
             }
 
@@ -335,7 +362,8 @@ void print_problem(const Problem& problem) {
     }
 }
 
-void print_solution(const Solution& solution) {
+void print_solution(const std::string& name, const Solution& solution) {
+    std::cout << name << '\n';
     std::cout << "Otwarte magazyny: ";
     for (int facility = 0; facility < static_cast<int>(solution.facility_open.size()); ++facility) {
         if (solution.facility_open[facility]) {
@@ -368,6 +396,12 @@ void print_solution(const Solution& solution) {
         }
         std::cout << '\n';
     }
+
+    std::cout << "objective_value: " << solution.objective_value << '\n';
+}
+
+void print_solution(const Solution& solution) {
+    print_solution("Rozwiazanie:", solution);
 }
 
 void print_stats(const std::string& name, const Stats& stats) {
