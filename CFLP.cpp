@@ -283,11 +283,6 @@ bool is_valid_solution(const Problem& problem, const Solution& solution) {
 double evaluate_solution(const Problem& problem, Solution& solution) {
     update_solution_state(problem, solution);
 
-    if (!is_valid_solution(problem, solution)) {
-        solution.objective_value = std::numeric_limits<double>::max();
-        return solution.objective_value;
-    }
-
     double total_cost = 0.0;
 
     for (int facility = 0; facility < problem.facilities; ++facility) {
@@ -523,21 +518,21 @@ Solution random_solution(const Problem& problem, std::mt19937& rng) {
         bool success = true;
 
         for (int customer : customer_order) {
-            std::vector<int> feasible_facilities;
+            std::vector<int> available_facilities;
 
             for (int facility = 0; facility < problem.facilities; ++facility) {
                 if (remaining_capacity[facility] >= problem.demands[customer]) {
-                    feasible_facilities.push_back(facility);
+                    available_facilities.push_back(facility);
                 }
             }
 
-            if (feasible_facilities.empty()) {
+            if (available_facilities.empty()) {
                 success = false;
                 break;
             }
 
-            std::uniform_int_distribution<int> distribution(0,static_cast<int>(feasible_facilities.size()) - 1);
-            int chosen_facility = feasible_facilities[distribution(rng)];
+            std::uniform_int_distribution<int> distribution(0,static_cast<int>(available_facilities.size()) - 1);
+            int chosen_facility = available_facilities[distribution(rng)];
 
             solution.customer_assignment[customer] = chosen_facility;
             remaining_capacity[chosen_facility] -= problem.demands[customer];
