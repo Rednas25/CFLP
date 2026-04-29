@@ -32,9 +32,9 @@ struct Solution {
 };
 
 struct EAConfig {
-    int pop_size = 80;
-    int gen = 375;
-    int tour_size = 5;
+    int pop_size = 40;
+    int gen = 250;
+    int tour_size = 6;
     double mutation_pro = 0.02;
     double cross_pro = 0.7;
     double better_parent_bias = 0.50;
@@ -56,14 +56,12 @@ double evaluate_solution(const Problem& problem, Solution& solution);
 Stats calculate_stats(const std::vector<double>& values);
 std::vector<double> population_scores(const std::vector<Solution>& population);
 void print_solution(const std::string& name, const Solution& solution);
-void print_solution(const Solution& solution);
 void print_stats(const std::string& name, const Stats& stats);
 Solution random_solution(const Problem& problem, std::mt19937& rng);
 Solution greedy_solution(const Problem& problem);
 std::vector<Solution> initialize_population(const Problem& problem, const EAConfig& config, std::mt19937& rng);
 int tournament_selection(const std::vector<Solution>& population, int tournament_size, std::mt19937& rng);
 Solution evolutionary_algorithm(const Problem& problem, const EAConfig& config, std::mt19937& rng);
-void print_population_summary(const std::vector<Solution>& population);
 bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& rng);
 void mutate_customer(const Problem& problem, Solution& solution, int customer, std::mt19937& rng);
 void mutate_solution(const Problem& problem, Solution& solution, std::mt19937& rng, double mutation_probability);
@@ -117,6 +115,7 @@ int main(int argc, char* argv[]) {
                 Stats stats = calculate_stats(results);
                 print_stats("Wyniki algorytmu losowego:", stats);
                 std::cout << "Liczba uruchomien: " << RANDOM_RUNS << '\n';
+                std::cout << '\n';
                 print_solution("Najlepsze rozwiazanie:", best_random);
                 return 0;
             }
@@ -341,25 +340,6 @@ void print_problem(const Problem& problem) {
             << " opening_cost=" << std::fixed << std::setprecision(2) << problem.opening_costs[facility]
             << '\n';
     }
-
-    std::cout << "\nKlienci (podglad):\n";
-    const int preview_customers = std::min(problem.customers, 5);
-    for (int customer = 0; customer < preview_customers; ++customer) {
-        std::cout << "K" << customer << " demand=" << problem.demands[customer] << " costs: ";
-
-        for (int facility = 0; facility < problem.facilities; ++facility) {
-            std::cout << problem.assignment_costs[customer][facility];
-            if (facility + 1 < problem.facilities) {
-                std::cout << ", ";
-            }
-        }
-
-        std::cout << '\n';
-    }
-
-    if (problem.customers > preview_customers) {
-        std::cout << "... (" << problem.customers - preview_customers << " kolejnych klientow pominieto w podgladzie)\n";
-    }
 }
 
 void print_solution(const std::string& name, const Solution& solution) {
@@ -397,11 +377,7 @@ void print_solution(const std::string& name, const Solution& solution) {
         std::cout << '\n';
     }
 
-    std::cout << "objective_value: " << solution.objective_value << '\n';
-}
-
-void print_solution(const Solution& solution) {
-    print_solution("Rozwiazanie:", solution);
+    std::cout << "Koszt rozwiazania: " << solution.objective_value << '\n';
 }
 
 void print_stats(const std::string& name, const Stats& stats) {
@@ -413,7 +389,7 @@ void print_stats(const std::string& name, const Stats& stats) {
 }
 
 Solution random_solution(const Problem& problem, std::mt19937& rng) {
-    const int max_attempts = 200;
+    const int max_attempts = 100;
 
     std::vector<int> base_customer_order(problem.customers);
     std::iota(base_customer_order.begin(), base_customer_order.end(), 0);
@@ -591,10 +567,6 @@ Solution evolutionary_algorithm(const Problem& problem, const EAConfig& config, 
     }
 
     return best;
-}
-
-void print_population_summary(const std::vector<Solution>& population) {
-    std::cout << "Populacja startowa EA: " << population.size() << '\n';
 }
 
 bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& rng) {
