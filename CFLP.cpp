@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -14,6 +15,9 @@
 const std::string DEFAULT_INSTANCE_NAME = "cap41_ss.txt";
 const int RANDOM_RUNS = 10000;
 const int EA_RUNS = 10;
+const std::string SUMMARY_CSV_PATH = "summary.csv";
+const std::string EA_RUNS_DIR = "ea_runs3";
+const bool SAVE_PROGRESS_CSV = true;
 
 struct Problem {
     int facilities = 0;
@@ -34,9 +38,9 @@ struct Solution {
 struct EAConfig {
     int pop_size = 40;
     int gen = 250;
-    int tour_size = 6;
-    double mutation_pro = 0.02;
-    double cross_pro = 0.7;
+    int tour_size = 7;
+    double mutation_pro = 0.03;
+    double cross_pro = 0.85;
     double better_parent_bias = 0.50;
 };
 
@@ -57,11 +61,28 @@ Stats calculate_stats(const std::vector<double>& values);
 std::vector<double> population_scores(const std::vector<Solution>& population);
 void print_solution(const std::string& name, const Solution& solution);
 void print_stats(const std::string& name, const Stats& stats);
+void summary_row(
+    const std::string& csv_path,
+    const std::string& instance_name,
+    const std::string& method_name,
+    int runs,
+    const Stats& stats
+);
+void summary_row_best_only(
+    const std::string& csv_path,
+    const std::string& instance_name,
+    const std::string& method_name,
+    int runs,
+    double best
+);
+std::string make_ea_csv_path(const std::string& instance_name, const EAConfig& config, int run_number);
+void create_ea_csv(const std::string& csv_path);
+void ea_progress_row(std::ofstream& csv_output, int generation, const Stats& stats);
 Solution random_solution(const Problem& problem, std::mt19937& rng);
 Solution greedy_solution(const Problem& problem);
 std::vector<Solution> initialize_population(const Problem& problem, const EAConfig& config, std::mt19937& rng);
 int tournament_selection(const std::vector<Solution>& population, int tournament_size, std::mt19937& rng);
-Solution evolutionary_algorithm(const Problem& problem, const EAConfig& config, std::mt19937& rng);
+Solution evolutionary_algorithm(const Problem& problem, std::ofstream& csv_output, const EAConfig& config, std::mt19937& rng);
 bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& rng);
 void mutate_customer(const Problem& problem, Solution& solution, int customer, std::mt19937& rng);
 void mutate_solution(const Problem& problem, Solution& solution, std::mt19937& rng, double mutation_probability);
@@ -74,102 +95,108 @@ Solution crossover(
 );
 
 int main(int argc, char* argv[]) {
-    try {
-        std::string path = DEFAULT_INSTANCE_NAME;
-        if (argc > 1) {
-            path = argv[1];
+    std::string path = DEFAULT_INSTANCE_NAME;
+    if (argc > 1) {
+        path = argv[1];
+    }
+
+    Problem problem = load_problem(path);
+    std::string instance_name = name_from_path(path);
+    std::mt19937 rng(std::random_device{}());
+    std::cout << "Instancja: " << instance_name << "\n\n";
+    print_problem(problem);
+    std::cout << '\n';
+    std::cout << "Wybor algorytmu:\n";
+    std::cout << "1. algorytm losowy\n";
+    std::cout << "2. algorytm zachlanny\n";
+    std::cout << "3. algorytm ewolucyjny\n";
+    std::cout << "wybor: ";
+
+    int method = 0;
+    std::cin >> method;
+    std::cout << '\n';
+
+    switch (method) {
+        case 1: {
+            std::vector<double> results;
+            results.reserve(RANDOM_RUNS);
+            Solution best_random;
+            bool has_best_solution = false;
+
+            for (int run = 0; run < RANDOM_RUNS; ++run) {
+                Solution current_solution = random_solution(problem, rng);
+                results.push_back(current_solution.objective_value);
+
+                if (!has_best_solution || current_solution.objective_value < best_random.objective_value) {
+                    best_random = current_solution;
+                    has_best_solution = true;
+                }
+            }
+
+            Stats stats = calculate_stats(results);
+            print_stats("Wyniki algorytmu losowego:", stats);
+            std::cout << "Liczba uruchomien: " << RANDOM_RUNS << '\n';
+            std::cout << '\n';
+            print_solution("Najlepsze rozwiazanie:", best_random);
+            summary_row(SUMMARY_CSV_PATH, instance_name, "random", RANDOM_RUNS, stats);
+            return 0;
         }
 
-        Problem problem = load_problem(path);
-        std::mt19937 rng(std::random_device{}());
-        std::cout << "Instancja: " << name_from_path(path) << "\n\n";
-        print_problem(problem);
-        std::cout << '\n';
-        std::cout << "Wybor algorytmu:\n";
-        std::cout << "1. algorytm losowy\n";
-        std::cout << "2. algorytm zachlanny\n";
-        std::cout << "3. algorytm ewolucyjny\n";
-        std::cout << "wybor: ";
+        case 2: {
+            Solution greedy = greedy_solution(problem);
+            print_solution("Rozwiazanie zachlanne:", greedy);
+            summary_row_best_only(SUMMARY_CSV_PATH, instance_name, "greedy", 1, greedy.objective_value);
+            return 0;
+        }
 
-        int method = 0;
-        std::cin >> method;
-        std::cout << '\n';
+        case 3: {
+            const EAConfig ea_config;
+            std::vector<double> results;
+            results.reserve(EA_RUNS);
+            Solution best_overall;
+            bool has_best_solution = false;
 
-        switch (method) {
-            case 1: {
-                std::vector<double> results;
-                results.reserve(RANDOM_RUNS);
-                Solution best_random;
-                bool has_best_solution = false;
+            std::cout << "EA config:\n";
+            std::cout << "pop_size: " << ea_config.pop_size << '\n';
+            std::cout << "gen: " << ea_config.gen << '\n';
+            std::cout << "Px: " << ea_config.cross_pro << '\n';
+            std::cout << "Pm: " << ea_config.mutation_pro << '\n';
+            std::cout << "Tour: " << ea_config.tour_size << '\n';
+            std::cout << "EA runs: " << EA_RUNS << "\n\n";
 
-                for (int run = 0; run < RANDOM_RUNS; ++run) {
-                    Solution current_solution = random_solution(problem, rng);
-                    results.push_back(current_solution.objective_value);
-
-                    if (!has_best_solution || current_solution.objective_value < best_random.objective_value) {
-                        best_random = current_solution;
-                        has_best_solution = true;
+            for (int run = 1; run <= EA_RUNS; ++run) {
+                std::ofstream ea_progress_output;
+                if (SAVE_PROGRESS_CSV) {
+                    std::string ea_progress_csv_path = make_ea_csv_path(instance_name, ea_config, run);
+                    create_ea_csv(ea_progress_csv_path);
+                    ea_progress_output.open(ea_progress_csv_path, std::ios::app);
+                    if (!ea_progress_output) {
+                        throw std::runtime_error("Nie udalo sie otworzyc pliku csv: " + ea_progress_csv_path);
                     }
                 }
 
-                Stats stats = calculate_stats(results);
-                print_stats("Wyniki algorytmu losowego:", stats);
-                std::cout << "Liczba uruchomien: " << RANDOM_RUNS << '\n';
-                std::cout << '\n';
-                print_solution("Najlepsze rozwiazanie:", best_random);
-                return 0;
-            }
+                std::cout << "========== RUN " << run << " ===========\n\n";
 
-            case 2: {
-                Solution greedy = greedy_solution(problem);
-                print_solution("Rozwiazanie zachlanne:", greedy);
-                return 0;
-            }
+                Solution best = evolutionary_algorithm(problem, ea_progress_output, ea_config, rng);
+                results.push_back(best.objective_value);
 
-            case 3: {
-                const EAConfig ea_config;
-                std::vector<double> results;
-                results.reserve(EA_RUNS);
-                Solution best_overall;
-                bool has_best_solution = false;
-
-                std::cout << "EA config:\n";
-                std::cout << "pop_size: " << ea_config.pop_size << '\n';
-                std::cout << "gen: " << ea_config.gen << '\n';
-                std::cout << "Px: " << ea_config.cross_pro << '\n';
-                std::cout << "Pm: " << ea_config.mutation_pro << '\n';
-                std::cout << "Tour: " << ea_config.tour_size << '\n';
-                std::cout << "EA runs: " << EA_RUNS << "\n\n";
-
-                for (int run = 1; run <= EA_RUNS; ++run) {
-                    std::cout << "========== RUN " << run << " ===========\n\n";
-
-                    Solution best = evolutionary_algorithm(problem, ea_config, rng);
-                    results.push_back(best.objective_value);
-
-                    if (!has_best_solution || best.objective_value < best_overall.objective_value) {
-                        best_overall = best;
-                        has_best_solution = true;
-                    }
-
-                    print_solution("Najlepszy osobnik EA:", best);
-                    std::cout << '\n';
+                if (!has_best_solution || best.objective_value < best_overall.objective_value) {
+                    best_overall = best;
+                    has_best_solution = true;
                 }
 
-                Stats stats = calculate_stats(results);
-                print_stats("Podsumowanie EA:", stats);
+                print_solution("Najlepszy osobnik EA:", best);
                 std::cout << '\n';
-
-                print_solution("Najlepszy osobnik EA ze wszystkich runow:", best_overall);
-                return 0;
             }
 
-            default:
-                throw std::runtime_error("Niepoprawny wybor algorytmu.");
+            Stats stats = calculate_stats(results);
+            print_stats("Podsumowanie EA:", stats);
+            std::cout << '\n';
+
+            summary_row(SUMMARY_CSV_PATH, instance_name, "EA", EA_RUNS, stats);
+            print_solution("Najlepszy osobnik EA ze wszystkich runow:", best_overall);
+            return 0;
         }
-    } catch (const std::exception& error) {
-        std::cerr << "Blad: " << error.what() << '\n';
-        return 1;
     }
 
     return 0;
@@ -182,34 +209,23 @@ Problem load_problem(const std::string& path) {
     }
 
     Problem problem;
-    if (!(input >> problem.facilities >> problem.customers)) {
-        throw std::runtime_error("Nie udalo sie odczytac liczby magazynow i klientow z pliku " + path);
-    }
+    input >> problem.facilities >> problem.customers;
 
     problem.capacities.resize(problem.facilities);
     problem.opening_costs.resize(problem.facilities);
 
     for (int facility = 0; facility < problem.facilities; ++facility) {
-        if (!(input >> problem.capacities[facility] >> problem.opening_costs[facility])) {
-            throw std::runtime_error("Nie udalo sie odczytac danych magazynu nr " + std::to_string(facility));
-        }
+        input >> problem.capacities[facility] >> problem.opening_costs[facility];
     }
 
     problem.demands.resize(problem.customers);
     problem.assignment_costs.assign(problem.customers, std::vector<double>(problem.facilities, 0.0));
 
     for (int customer = 0; customer < problem.customers; ++customer) {
-        if (!(input >> problem.demands[customer])) {
-            throw std::runtime_error("Nie udalo sie odczytac popytu klienta nr " + std::to_string(customer));
-        }
+        input >> problem.demands[customer];
 
         for (int facility = 0; facility < problem.facilities; ++facility) {
-            if (!(input >> problem.assignment_costs[customer][facility])) {
-                throw std::runtime_error(
-                    "Nie udalo sie odczytac kosztu przypisania dla klienta nr " +
-                    std::to_string(customer) + " i magazynu nr " + std::to_string(facility)
-                );
-            }
+            input >> problem.assignment_costs[customer][facility];
         }
     }
 
@@ -388,6 +404,108 @@ void print_stats(const std::string& name, const Stats& stats) {
     std::cout << "std:   " << stats.std << '\n';
 }
 
+void summary_row(
+    const std::string& csv_path,
+    const std::string& instance_name,
+    const std::string& method_name,
+    int runs,
+    const Stats& stats
+) {
+    bool write_header = false;
+    {
+        std::ifstream check(csv_path);
+        if (!check || check.peek() == std::ifstream::traits_type::eof()) {
+            write_header = true;
+        }
+    }
+
+    std::ofstream output(csv_path, std::ios::app);
+    if (!output) {
+        throw std::runtime_error("Nie udalo sie otworzyc pliku csv: " + csv_path);
+    }
+
+    if (write_header) {
+        output << "instance,method,runs,best,worst,avg,std\n";
+    }
+
+    output << instance_name << ','
+           << method_name << ','
+           << runs << ','
+           << stats.best << ','
+           << stats.worst << ','
+           << std::fixed << std::setprecision(3) << stats.avg << ','
+           << std::fixed << std::setprecision(3) << stats.std << '\n';
+}
+
+void summary_row_best_only(
+    const std::string& csv_path,
+    const std::string& instance_name,
+    const std::string& method_name,
+    int runs,
+    double best
+) {
+    bool write_header = false;
+    {
+        std::ifstream check(csv_path);
+        if (!check || check.peek() == std::ifstream::traits_type::eof()) {
+            write_header = true;
+        }
+    }
+
+    std::ofstream output(csv_path, std::ios::app);
+    if (!output) {
+        throw std::runtime_error("Nie udalo sie otworzyc pliku csv: " + csv_path);
+    }
+
+    if (write_header) {
+        output << "instance,method,runs,best,worst,avg,std\n";
+    }
+
+    output << instance_name << ','
+           << method_name << ','
+           << runs << ','
+           << best << ','
+           << ','
+           << ','
+           << '\n';
+}
+
+std::string make_ea_csv_path(const std::string& instance_name, const EAConfig& config, int run_number) {
+    std::filesystem::create_directories(EA_RUNS_DIR);
+
+    std::string file_name = instance_name
+        + "_pop" + std::to_string(config.pop_size)
+        + "_gen" + std::to_string(config.gen)
+        + "_px" + std::to_string(static_cast<int>(config.cross_pro * 100))
+        + "_pm" + std::to_string(static_cast<int>(config.mutation_pro * 1000))
+        + "_tour" + std::to_string(config.tour_size)
+        + "_run" + std::to_string(run_number)
+        + ".csv";
+
+    return EA_RUNS_DIR + "/" + file_name;
+}
+
+void create_ea_csv(const std::string& csv_path) {
+    std::ofstream output(csv_path);
+    if (!output) {
+        throw std::runtime_error("Nie udalo sie utworzyc pliku csv: " + csv_path);
+    }
+
+    output << "generation,best,avg,worst,std\n";
+}
+
+void ea_progress_row(std::ofstream& csv_output, int generation, const Stats& stats) {
+    if (!csv_output.is_open()) {
+        return;
+    }
+
+    csv_output << generation << ','
+               << stats.best << ','
+               << std::fixed << std::setprecision(3) << stats.avg << ','
+               << stats.worst << ','
+               << std::fixed << std::setprecision(3) << stats.std << '\n';
+}
+
 Solution random_solution(const Problem& problem, std::mt19937& rng) {
     const int max_attempts = 100;
 
@@ -427,9 +545,7 @@ Solution random_solution(const Problem& problem, std::mt19937& rng) {
 
         if (success) {
             solution.objective_value = evaluate_solution(problem, solution);
-            if (is_valid_solution(problem, solution)) {
-                return solution;
-            }
+            return solution;
         }
     }
 
@@ -511,7 +627,7 @@ int tournament_selection(const std::vector<Solution>& population, int tournament
     return best_index;
 }
 
-Solution evolutionary_algorithm(const Problem& problem, const EAConfig& config, std::mt19937& rng) {
+Solution evolutionary_algorithm(const Problem& problem, std::ofstream& csv_output, const EAConfig& config, std::mt19937& rng) {
     std::vector<Solution> population = initialize_population(problem, config, rng);
     Solution best = population[0];
 
@@ -525,6 +641,7 @@ Solution evolutionary_algorithm(const Problem& problem, const EAConfig& config, 
 
     for (int generation = 0; generation < config.gen; ++generation) {
         Stats current_stats = calculate_stats(population_scores(population));
+        ea_progress_row(csv_output, generation + 1, current_stats);
         std::cout << "Gen. " << generation + 1
                   << ", Best: " << current_stats.best
                   << ", Avg: " << current_stats.avg
@@ -586,7 +703,7 @@ bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& r
 
         if (overloaded_facility == -1) {
             solution.objective_value = evaluate_solution(problem, solution);
-            return is_valid_solution(problem, solution);
+            return true;
         }
 
         std::vector<int> facility_customers;
@@ -659,7 +776,6 @@ void mutate_customer(const Problem& problem, Solution& solution, int customer, s
 
     if (!repair_solution(problem, solution, rng)) {
         solution = original_solution;
-        solution.objective_value = evaluate_solution(problem, solution);
     }
 }
 
@@ -705,7 +821,6 @@ Solution crossover(
 
     if (!repair_solution(problem, child, rng)) {
         child = *better_parent;
-        child.objective_value = evaluate_solution(problem, child);
         return child;
     }
 
