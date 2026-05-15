@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <fstream>
 #include <filesystem>
@@ -15,9 +16,27 @@
 const std::string DEFAULT_INSTANCE_NAME = "cap41_ss.txt";
 const int RANDOM_RUNS = 10000;
 const int EA_RUNS = 10;
+const int SA_RUNS = 10;
 const std::string SUMMARY_CSV_PATH = "summary.csv";
 const std::string EA_RUNS_DIR = "ea_runs3";
+const std::string SA_RUNS_DIR = "sa_runs";
 const bool SAVE_PROGRESS_CSV = true;
+
+struct EAConfig {
+    int pop_size = 40;
+    int gen = 250;
+    int tour_size = 7;
+    double mutation_pro = 0.03;
+    double cross_pro = 0.85;
+    double better_parent_bias = 0.50;
+};
+
+struct SAConfig {
+    double initial_temp = 180000.0;
+    double cooling_rate = 0.995;
+    double min_temp = 8.0;
+    int iter_per_temp = 5;
+};
 
 struct Problem {
     int facilities = 0;
@@ -35,14 +54,6 @@ struct Solution {
     double objective_value = -1.0;
 };
 
-struct EAConfig {
-    int pop_size = 40;
-    int gen = 250;
-    int tour_size = 7;
-    double mutation_pro = 0.03;
-    double cross_pro = 0.85;
-    double better_parent_bias = 0.50;
-};
 
 struct Stats {
     double best = 0.0;
@@ -66,23 +77,30 @@ void summary_row(
     const std::string& instance_name,
     const std::string& method_name,
     int runs,
-    const Stats& stats
+    const Stats& stats,
+    long long time_ms
 );
 void summary_row_best_only(
     const std::string& csv_path,
     const std::string& instance_name,
     const std::string& method_name,
     int runs,
-    double best
+    double best,
+    long long time_ms
 );
 std::string make_ea_csv_path(const std::string& instance_name, const EAConfig& config, int run_number);
 void create_ea_csv(const std::string& csv_path);
 void ea_progress_row(std::ofstream& csv_output, int generation, const Stats& stats);
+std::string make_sa_csv_path(const std::string& instance_name, const SAConfig& config, int run_number);
+void create_sa_csv(const std::string& csv_path);
+void sa_progress_row(std::ofstream& csv_output, int iteration, double current_value, double best_value, double temperature);
 Solution random_solution(const Problem& problem, std::mt19937& rng);
 Solution greedy_solution(const Problem& problem);
 std::vector<Solution> initialize_population(const Problem& problem, const EAConfig& config, std::mt19937& rng);
 int tournament_selection(const std::vector<Solution>& population, int tournament_size, std::mt19937& rng);
 Solution evolutionary_algorithm(const Problem& problem, std::ofstream& csv_output, const EAConfig& config, std::mt19937& rng);
+Solution sa_neighbor(const Problem& problem, const Solution& current, std::mt19937& rng);
+Solution simulated_annealing(const Problem& problem, std::ofstream& csv_output, const SAConfig& config, std::mt19937& rng);
 bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& rng);
 void mutate_customer(const Problem& problem, Solution& solution, int customer, std::mt19937& rng);
 void mutate_solution(const Problem& problem, Solution& solution, std::mt19937& rng, double mutation_probability);
@@ -110,6 +128,7 @@ int main(int argc, char* argv[]) {
     std::cout << "1. algorytm losowy\n";
     std::cout << "2. algorytm zachlanny\n";
     std::cout << "3. algorytm ewolucyjny\n";
+    std::cout << "4. algorytm symulowanego wyzarzania\n";
     std::cout << "wybor: ";
 
     int method = 0;
@@ -118,6 +137,7 @@ int main(int argc, char* argv[]) {
 
     switch (method) {
         case 1: {
+            auto start_time = std::chrono::steady_clock::now();
             std::vector<double> results;
             results.reserve(RANDOM_RUNS);
             Solution best_random;
@@ -138,18 +158,24 @@ int main(int argc, char* argv[]) {
             std::cout << "Liczba uruchomien: " << RANDOM_RUNS << '\n';
             std::cout << '\n';
             print_solution("Najlepsze rozwiazanie:", best_random);
-            summary_row(SUMMARY_CSV_PATH, instance_name, "random", RANDOM_RUNS, stats);
+            auto end_time = std::chrono::steady_clock::now();
+            long long elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+            summary_row(SUMMARY_CSV_PATH, instance_name, "random", RANDOM_RUNS, stats, elapsed_ms);
             return 0;
         }
 
         case 2: {
+            auto start_time = std::chrono::steady_clock::now();
             Solution greedy = greedy_solution(problem);
             print_solution("Rozwiazanie zachlanne:", greedy);
-            summary_row_best_only(SUMMARY_CSV_PATH, instance_name, "greedy", 1, greedy.objective_value);
+            auto end_time = std::chrono::steady_clock::now();
+            long long elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+            summary_row_best_only(SUMMARY_CSV_PATH, instance_name, "greedy", 1, greedy.objective_value, elapsed_ms);
             return 0;
         }
 
         case 3: {
+            auto start_time = std::chrono::steady_clock::now();
             const EAConfig ea_config;
             std::vector<double> results;
             results.reserve(EA_RUNS);
@@ -193,8 +219,61 @@ int main(int argc, char* argv[]) {
             print_stats("Podsumowanie EA:", stats);
             std::cout << '\n';
 
-            summary_row(SUMMARY_CSV_PATH, instance_name, "EA", EA_RUNS, stats);
+            auto end_time = std::chrono::steady_clock::now();
+            long long elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+            summary_row(SUMMARY_CSV_PATH, instance_name, "EA", EA_RUNS, stats, elapsed_ms);
             print_solution("Najlepszy osobnik EA ze wszystkich runow:", best_overall);
+            return 0;
+        }
+
+        case 4: {
+            auto start_time = std::chrono::steady_clock::now();
+            const SAConfig sa_config;
+            std::vector<double> results;
+            results.reserve(SA_RUNS);
+            Solution best_overall;
+            bool has_best_solution = false;
+
+            std::cout << "SA config:\n";
+            std::cout << "T0: " << sa_config.initial_temp << '\n';
+            std::cout << "cooling_rate: " << sa_config.cooling_rate << '\n';
+            std::cout << "min_temp: " << sa_config.min_temp << '\n';
+            std::cout << "iter_per_temp: " << sa_config.iter_per_temp << '\n';
+            std::cout << "SA runs: " << SA_RUNS << "\n\n";
+
+            for (int run = 1; run <= SA_RUNS; ++run) {
+                std::ofstream sa_progress_output;
+                if (SAVE_PROGRESS_CSV) {
+                    std::string sa_progress_csv_path = make_sa_csv_path(instance_name, sa_config, run);
+                    create_sa_csv(sa_progress_csv_path);
+                    sa_progress_output.open(sa_progress_csv_path, std::ios::app);
+                    if (!sa_progress_output) {
+                        throw std::runtime_error("Nie udalo sie otworzyc pliku csv: " + sa_progress_csv_path);
+                    }
+                }
+
+                std::cout << "========== RUN " << run << " ===========\n\n";
+
+                Solution best = simulated_annealing(problem, sa_progress_output, sa_config, rng);
+                results.push_back(best.objective_value);
+
+                if (!has_best_solution || best.objective_value < best_overall.objective_value) {
+                    best_overall = best;
+                    has_best_solution = true;
+                }
+
+                print_solution("Najlepsze rozwiazanie SA:", best);
+                std::cout << '\n';
+            }
+
+            Stats stats = calculate_stats(results);
+            print_stats("Podsumowanie SA:", stats);
+            std::cout << '\n';
+
+            auto end_time = std::chrono::steady_clock::now();
+            long long elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+            summary_row(SUMMARY_CSV_PATH, instance_name, "SA", SA_RUNS, stats, elapsed_ms);
+            print_solution("Najlepsze rozwiazanie SA ze wszystkich runow:", best_overall);
             return 0;
         }
     }
@@ -404,7 +483,8 @@ void summary_row(
     const std::string& instance_name,
     const std::string& method_name,
     int runs,
-    const Stats& stats
+    const Stats& stats,
+    long long time_ms
 ) {
     bool write_header = false;
     {
@@ -420,7 +500,7 @@ void summary_row(
     }
 
     if (write_header) {
-        output << "instance,method,runs,best,worst,avg,std\n";
+        output << "instance,method,runs,best,worst,avg,std,time_ms\n";
     }
 
     output << instance_name << ','
@@ -429,7 +509,8 @@ void summary_row(
            << stats.best << ','
            << stats.worst << ','
            << std::fixed << std::setprecision(3) << stats.avg << ','
-           << std::fixed << std::setprecision(3) << stats.std << '\n';
+           << std::fixed << std::setprecision(3) << stats.std << ','
+           << time_ms << '\n';
 }
 
 void summary_row_best_only(
@@ -437,7 +518,8 @@ void summary_row_best_only(
     const std::string& instance_name,
     const std::string& method_name,
     int runs,
-    double best
+    double best,
+    long long time_ms
 ) {
     bool write_header = false;
     {
@@ -453,7 +535,7 @@ void summary_row_best_only(
     }
 
     if (write_header) {
-        output << "instance,method,runs,best,worst,avg,std\n";
+        output << "instance,method,runs,best,worst,avg,std,time_ms\n";
     }
 
     output << instance_name << ','
@@ -462,7 +544,8 @@ void summary_row_best_only(
            << best << ','
            << ','
            << ','
-           << '\n';
+           << ','
+           << time_ms << '\n';
 }
 
 std::string make_ea_csv_path(const std::string& instance_name, const EAConfig& config, int run_number) {
@@ -499,6 +582,39 @@ void ea_progress_row(std::ofstream& csv_output, int generation, const Stats& sta
                << std::fixed << std::setprecision(3) << stats.avg << ','
                << stats.worst << ','
                << std::fixed << std::setprecision(3) << stats.std << '\n';
+}
+
+std::string make_sa_csv_path(const std::string& instance_name, const SAConfig& config, int run_number) {
+    std::filesystem::create_directories(SA_RUNS_DIR);
+
+    std::string file_name = instance_name
+        + "_t0" + std::to_string(static_cast<int>(config.initial_temp))
+        + "_cool" + std::to_string(static_cast<int>(config.cooling_rate * 1000))
+        + "_iter" + std::to_string(config.iter_per_temp)
+        + "_run" + std::to_string(run_number)
+        + ".csv";
+
+    return SA_RUNS_DIR + "/" + file_name;
+}
+
+void create_sa_csv(const std::string& csv_path) {
+    std::ofstream output(csv_path);
+    if (!output) {
+        throw std::runtime_error("Nie udalo sie utworzyc pliku csv: " + csv_path);
+    }
+
+    output << "iteration,current,best,temp\n";
+}
+
+void sa_progress_row(std::ofstream& csv_output, int iteration, double current_value, double best_value, double temperature) {
+    if (!csv_output.is_open()) {
+        return;
+    }
+
+    csv_output << iteration << ','
+               << current_value << ','
+               << best_value << ','
+               << std::fixed << std::setprecision(6) << temperature << '\n';
 }
 
 Solution random_solution(const Problem& problem, std::mt19937& rng) {
@@ -667,7 +783,6 @@ Solution evolutionary_algorithm(const Problem& problem, std::ofstream& csv_outpu
             }
 
             mutate_solution(problem, child, rng, config.mutation_pro);
-            child.objective_value = evaluate_solution(problem, child);
             next_population.push_back(child);
 
             if (child.objective_value < best.objective_value) {
@@ -676,6 +791,58 @@ Solution evolutionary_algorithm(const Problem& problem, std::ofstream& csv_outpu
         }
 
         population = next_population;
+    }
+
+    return best;
+}
+
+Solution sa_neighbor(const Problem& problem, const Solution& current, std::mt19937& rng) {
+    Solution neighbor = current;
+
+    std::uniform_int_distribution<int> customer_draw(0, problem.customers - 1);
+    int customer = customer_draw(rng);
+    mutate_customer(problem, neighbor, customer, rng);
+
+    return neighbor;
+}
+
+Solution simulated_annealing(const Problem& problem, std::ofstream& csv_output, const SAConfig& config, std::mt19937& rng) {
+    Solution current = random_solution(problem, rng);
+    Solution best = current;
+
+    std::uniform_real_distribution<double> probability_draw(0.0, 1.0);
+    double temperature = config.initial_temp;
+    int iteration_number = 1;
+
+    while (temperature > config.min_temp) {
+        for (int iteration = 0; iteration < config.iter_per_temp; ++iteration) {
+            Solution neighbor = sa_neighbor(problem, current, rng);
+
+            double delta = neighbor.objective_value - current.objective_value;
+            if (delta < 0) {
+                current = neighbor;
+            } else {
+                double accept_prob = std::exp(-delta / temperature);
+                if (probability_draw(rng) < accept_prob) {
+                    current = neighbor;
+                }
+            }
+
+            if (current.objective_value < best.objective_value) {
+                best = current;
+            }
+
+            sa_progress_row(
+                csv_output,
+                iteration_number,
+                current.objective_value,
+                best.objective_value,
+                temperature
+            );
+            ++iteration_number;
+        }
+
+        temperature *= config.cooling_rate;
     }
 
     return best;
@@ -782,8 +949,6 @@ void mutate_solution(const Problem& problem, Solution& solution, std::mt19937& r
             mutate_customer(problem, solution, customer, rng);
         }
     }
-
-    solution.objective_value = evaluate_solution(problem, solution);
 }
 
 Solution crossover(
@@ -818,7 +983,5 @@ Solution crossover(
         child = *better_parent;
         return child;
     }
-
-    child.objective_value = evaluate_solution(problem, child);
     return child;
 }
