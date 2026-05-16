@@ -6,21 +6,28 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
-#include <ctime>
 #include <numeric>
+#include <optional>
 #include <random>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+const std::filesystem::path PROJECT_DIR = std::filesystem::path(__FILE__).parent_path();
 const std::string DEFAULT_INSTANCE_NAME = "cap41_ss.txt";
+
 const int RANDOM_RUNS = 10000;
 const int EA_RUNS = 10;
 const int SA_RUNS = 10;
-const std::string SUMMARY_CSV_PATH = "summary.csv";
-const std::string EA_RUNS_DIR = "ea_runs3";
-const std::string SA_RUNS_DIR = "sa_runs";
-const bool SAVE_PROGRESS_CSV = true;
+const int VNS_RUNS = 10;
+
+const std::string SUMMARY_CSV_PATH = (PROJECT_DIR / "summary.csv").string();
+const std::string EA_RUNS_DIR = (PROJECT_DIR / "ea_runs3").string();
+const std::string SA_RUNS_DIR = (PROJECT_DIR / "sa_runs").string();
+const std::string VNS_RUNS_DIR = (PROJECT_DIR / "vns_runs").string();
+
+const bool SAVE_PROGRESS_CSV = false;
+const bool EA_VERBOSE = false;
 
 struct EAConfig {
     int pop_size = 40;
@@ -36,6 +43,12 @@ struct SAConfig {
     double cooling_rate = 0.995;
     double min_temp = 8.0;
     int iter_per_temp = 5;
+};
+
+struct VNSConfig {
+    int max_iterations = 50;
+    int shake_attempts_per_neighborhood = 5;
+    int local_search_attempts = 60;
 };
 
 struct Problem {
@@ -66,7 +79,6 @@ Problem load_problem(const std::string& path);
 std::string name_from_path(const std::string& path);
 void print_problem(const Problem& problem);
 void update_solution_state(const Problem& problem, Solution& solution);
-bool is_valid_solution(const Problem& problem, const Solution& solution);
 double evaluate_solution(const Problem& problem, Solution& solution);
 Stats calculate_stats(const std::vector<double>& values);
 std::vector<double> population_scores(const std::vector<Solution>& population);
@@ -77,15 +89,10 @@ void summary_row(
     const std::string& instance_name,
     const std::string& method_name,
     int runs,
-    const Stats& stats,
-    long long time_ms
-);
-void summary_row_best_only(
-    const std::string& csv_path,
-    const std::string& instance_name,
-    const std::string& method_name,
-    int runs,
     double best,
+    std::optional<double> worst,
+    std::optional<double> avg,
+    std::optional<double> std,
     long long time_ms
 );
 std::string make_ea_csv_path(const std::string& instance_name, const EAConfig& config, int run_number);
@@ -94,6 +101,9 @@ void ea_progress_row(std::ofstream& csv_output, int generation, const Stats& sta
 std::string make_sa_csv_path(const std::string& instance_name, const SAConfig& config, int run_number);
 void create_sa_csv(const std::string& csv_path);
 void sa_progress_row(std::ofstream& csv_output, int iteration, double current_value, double best_value, double temperature);
+std::string make_vns_csv_path(const std::string& instance_name, const VNSConfig& config, int run_number);
+void create_vns_csv(const std::string& csv_path);
+void vns_progress_row(std::ofstream& csv_output, int iteration, const std::string& phase, int neighborhood, double value, double best_value);
 Solution random_solution(const Problem& problem, std::mt19937& rng);
 Solution greedy_solution(const Problem& problem);
 std::vector<Solution> initialize_population(const Problem& problem, const EAConfig& config, std::mt19937& rng);
@@ -102,6 +112,20 @@ Solution evolutionary_algorithm(const Problem& problem, std::ofstream& csv_outpu
 Solution sa_neighbor(const Problem& problem, const Solution& current, std::mt19937& rng);
 Solution simulated_annealing(const Problem& problem, std::ofstream& csv_output, const SAConfig& config, std::mt19937& rng);
 bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& rng);
+Solution local_search_move_one(
+    const Problem& problem,
+    const Solution& start,
+    int max_attempts,
+    int neighborhood,
+    int& log_iteration,
+    double& best_value,
+    std::ofstream& csv_output,
+    std::mt19937& rng
+);
+bool shake_swap_two(const Problem& problem, Solution& solution, std::mt19937& rng);
+bool shake_move_two(const Problem& problem, Solution& solution, std::mt19937& rng);
+bool shake_partial_facility_reallocation(const Problem& problem, Solution& solution, std::mt19937& rng);
+Solution variable_neighborhood_search(const Problem& problem, std::ofstream& csv_output, const VNSConfig& config, std::mt19937& rng);
 void mutate_customer(const Problem& problem, Solution& solution, int customer, std::mt19937& rng);
 void mutate_solution(const Problem& problem, Solution& solution, std::mt19937& rng, double mutation_probability);
 Solution crossover(
@@ -113,7 +137,7 @@ Solution crossover(
 );
 
 int main(int argc, char* argv[]) {
-    std::string path = DEFAULT_INSTANCE_NAME;
+    std::string path = (PROJECT_DIR / DEFAULT_INSTANCE_NAME).string();
     if (argc > 1) {
         path = argv[1];
     }
@@ -129,6 +153,7 @@ int main(int argc, char* argv[]) {
     std::cout << "2. algorytm zachlanny\n";
     std::cout << "3. algorytm ewolucyjny\n";
     std::cout << "4. algorytm symulowanego wyzarzania\n";
+    std::cout << "5. algorytm VNS\n";
     std::cout << "wybor: ";
 
     int method = 0;
@@ -160,7 +185,17 @@ int main(int argc, char* argv[]) {
             print_solution("Najlepsze rozwiazanie:", best_random);
             auto end_time = std::chrono::steady_clock::now();
             long long elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-            summary_row(SUMMARY_CSV_PATH, instance_name, "random", RANDOM_RUNS, stats, elapsed_ms);
+            summary_row(
+                SUMMARY_CSV_PATH,
+                instance_name,
+                "random",
+                RANDOM_RUNS,
+                stats.best,
+                stats.worst,
+                stats.avg,
+                stats.std,
+                elapsed_ms
+            );
             return 0;
         }
 
@@ -170,7 +205,17 @@ int main(int argc, char* argv[]) {
             print_solution("Rozwiazanie zachlanne:", greedy);
             auto end_time = std::chrono::steady_clock::now();
             long long elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-            summary_row_best_only(SUMMARY_CSV_PATH, instance_name, "greedy", 1, greedy.objective_value, elapsed_ms);
+            summary_row(
+                SUMMARY_CSV_PATH,
+                instance_name,
+                "greedy",
+                1,
+                greedy.objective_value,
+                std::nullopt,
+                std::nullopt,
+                std::nullopt,
+                elapsed_ms
+            );
             return 0;
         }
 
@@ -221,7 +266,17 @@ int main(int argc, char* argv[]) {
 
             auto end_time = std::chrono::steady_clock::now();
             long long elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-            summary_row(SUMMARY_CSV_PATH, instance_name, "EA", EA_RUNS, stats, elapsed_ms);
+            summary_row(
+                SUMMARY_CSV_PATH,
+                instance_name,
+                "EA",
+                EA_RUNS,
+                stats.best,
+                stats.worst,
+                stats.avg,
+                stats.std,
+                elapsed_ms
+            );
             print_solution("Najlepszy osobnik EA ze wszystkich runow:", best_overall);
             return 0;
         }
@@ -272,8 +327,78 @@ int main(int argc, char* argv[]) {
 
             auto end_time = std::chrono::steady_clock::now();
             long long elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-            summary_row(SUMMARY_CSV_PATH, instance_name, "SA", SA_RUNS, stats, elapsed_ms);
+            summary_row(
+                SUMMARY_CSV_PATH,
+                instance_name,
+                "SA",
+                SA_RUNS,
+                stats.best,
+                stats.worst,
+                stats.avg,
+                stats.std,
+                elapsed_ms
+            );
             print_solution("Najlepsze rozwiazanie SA ze wszystkich runow:", best_overall);
+            return 0;
+        }
+
+        case 5: {
+            auto start_time = std::chrono::steady_clock::now();
+            const VNSConfig vns_config;
+            std::vector<double> results;
+            results.reserve(VNS_RUNS);
+            Solution best_overall;
+            bool has_best_solution = false;
+
+            std::cout << "VNS config:\n";
+            std::cout << "max_iterations: " << vns_config.max_iterations << '\n';
+            std::cout << "shake_attempts_per_neighborhood: " << vns_config.shake_attempts_per_neighborhood << '\n';
+            std::cout << "local_search_attempts: " << vns_config.local_search_attempts << '\n';
+            std::cout << "VNS runs: " << VNS_RUNS << "\n\n";
+
+            for (int run = 1; run <= VNS_RUNS; ++run) {
+                std::ofstream vns_progress_output;
+                if (SAVE_PROGRESS_CSV) {
+                    std::string vns_progress_csv_path = make_vns_csv_path(instance_name, vns_config, run);
+                    create_vns_csv(vns_progress_csv_path);
+                    vns_progress_output.open(vns_progress_csv_path, std::ios::app);
+                    if (!vns_progress_output) {
+                        throw std::runtime_error("Nie udalo sie otworzyc pliku csv: " + vns_progress_csv_path);
+                    }
+                }
+
+                std::cout << "========== RUN " << run << " ===========\n\n";
+
+                Solution best = variable_neighborhood_search(problem, vns_progress_output, vns_config, rng);
+                results.push_back(best.objective_value);
+
+                if (!has_best_solution || best.objective_value < best_overall.objective_value) {
+                    best_overall = best;
+                    has_best_solution = true;
+                }
+
+                print_solution("Najlepsze rozwiazanie VNS:", best);
+                std::cout << '\n';
+            }
+
+            Stats stats = calculate_stats(results);
+            print_stats("Podsumowanie VNS:", stats);
+            std::cout << '\n';
+
+            auto end_time = std::chrono::steady_clock::now();
+            long long elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+            summary_row(
+                SUMMARY_CSV_PATH,
+                instance_name,
+                "VNS",
+                VNS_RUNS,
+                stats.best,
+                stats.worst,
+                stats.avg,
+                stats.std,
+                elapsed_ms
+            );
+            print_solution("Najlepsze rozwiazanie VNS ze wszystkich runow:", best_overall);
             return 0;
         }
     }
@@ -332,31 +457,6 @@ void update_solution_state(const Problem& problem, Solution& solution) {
         solution.facility_open[facility] = true;
         solution.facility_loads[facility] += problem.demands[customer];
     }
-}
-
-bool is_valid_solution(const Problem& problem, const Solution& solution) {
-    if (static_cast<int>(solution.customer_assignment.size()) != problem.customers) {
-        return false;
-    }
-
-    for (int customer = 0; customer < problem.customers; ++customer) {
-        int facility = solution.customer_assignment[customer];
-        if (facility < 0 || facility >= problem.facilities) {
-            return false;
-        }
-
-        if (!solution.facility_open[facility]) {
-            return false;
-        }
-    }
-
-    for (int facility = 0; facility < problem.facilities; ++facility) {
-        if (solution.facility_loads[facility] > problem.capacities[facility]) {
-            return false;
-        }
-    }
-
-    return true;
 }
 
 double evaluate_solution(const Problem& problem, Solution& solution) {
@@ -483,42 +583,10 @@ void summary_row(
     const std::string& instance_name,
     const std::string& method_name,
     int runs,
-    const Stats& stats,
-    long long time_ms
-) {
-    bool write_header = false;
-    {
-        std::ifstream check(csv_path);
-        if (!check || check.peek() == std::ifstream::traits_type::eof()) {
-            write_header = true;
-        }
-    }
-
-    std::ofstream output(csv_path, std::ios::app);
-    if (!output) {
-        throw std::runtime_error("Nie udalo sie otworzyc pliku csv: " + csv_path);
-    }
-
-    if (write_header) {
-        output << "instance,method,runs,best,worst,avg,std,time_ms\n";
-    }
-
-    output << instance_name << ','
-           << method_name << ','
-           << runs << ','
-           << stats.best << ','
-           << stats.worst << ','
-           << std::fixed << std::setprecision(3) << stats.avg << ','
-           << std::fixed << std::setprecision(3) << stats.std << ','
-           << time_ms << '\n';
-}
-
-void summary_row_best_only(
-    const std::string& csv_path,
-    const std::string& instance_name,
-    const std::string& method_name,
-    int runs,
     double best,
+    std::optional<double> worst,
+    std::optional<double> avg,
+    std::optional<double> std,
     long long time_ms
 ) {
     bool write_header = false;
@@ -542,9 +610,22 @@ void summary_row_best_only(
            << method_name << ','
            << runs << ','
            << best << ','
-           << ','
-           << ','
-           << ','
+           ;
+
+    if (worst.has_value()) {
+        output << *worst;
+    }
+    output << ',';
+
+    if (avg.has_value()) {
+        output << std::fixed << std::setprecision(3) << *avg;
+    }
+    output << ',';
+
+    if (std.has_value()) {
+        output << std::fixed << std::setprecision(3) << *std;
+    }
+    output << ','
            << time_ms << '\n';
 }
 
@@ -615,6 +696,40 @@ void sa_progress_row(std::ofstream& csv_output, int iteration, double current_va
                << current_value << ','
                << best_value << ','
                << std::fixed << std::setprecision(6) << temperature << '\n';
+}
+
+std::string make_vns_csv_path(const std::string& instance_name, const VNSConfig& config, int run_number) {
+    std::filesystem::create_directories(VNS_RUNS_DIR);
+
+    std::string file_name = instance_name
+        + "_iter" + std::to_string(config.max_iterations)
+        + "_shake" + std::to_string(config.shake_attempts_per_neighborhood)
+        + "_ls" + std::to_string(config.local_search_attempts)
+        + "_run" + std::to_string(run_number)
+        + ".csv";
+
+    return VNS_RUNS_DIR + "/" + file_name;
+}
+
+void create_vns_csv(const std::string& csv_path) {
+    std::ofstream output(csv_path);
+    if (!output) {
+        throw std::runtime_error("Nie udalo sie utworzyc pliku csv: " + csv_path);
+    }
+
+    output << "iteration,phase,neighborhood,value,best\n";
+}
+
+void vns_progress_row(std::ofstream& csv_output, int iteration, const std::string& phase, int neighborhood, double value, double best_value) {
+    if (!csv_output.is_open()) {
+        return;
+    }
+
+    csv_output << iteration << ','
+               << phase << ','
+               << neighborhood << ','
+               << value << ','
+               << best_value << '\n';
 }
 
 Solution random_solution(const Problem& problem, std::mt19937& rng) {
@@ -753,10 +868,12 @@ Solution evolutionary_algorithm(const Problem& problem, std::ofstream& csv_outpu
     for (int generation = 0; generation < config.gen; ++generation) {
         Stats current_stats = calculate_stats(population_scores(population));
         ea_progress_row(csv_output, generation + 1, current_stats);
-        std::cout << "Gen. " << generation + 1
-                  << ", Best: " << current_stats.best
-                  << ", Avg: " << current_stats.avg
-                  << ", Worst: " << current_stats.worst << '\n';
+        if (EA_VERBOSE) {
+            std::cout << "Gen. " << generation + 1
+                      << ", Best: " << current_stats.best
+                      << ", Avg: " << current_stats.avg
+                      << ", Worst: " << current_stats.worst << '\n';
+        }
 
         std::vector<Solution> next_population;
         next_population.reserve(config.pop_size);
@@ -984,4 +1101,268 @@ Solution crossover(
         return child;
     }
     return child;
+}
+
+Solution local_search_move_one(
+    const Problem& problem,
+    const Solution& start,
+    int max_attempts,
+    int neighborhood,
+    int& log_iteration,
+    double& best_value,
+    std::ofstream& csv_output,
+    std::mt19937& rng
+) {
+    Solution best = start;
+    std::vector<int> customers(problem.customers);
+    std::iota(customers.begin(), customers.end(), 0);
+    int attempts_used = 0;
+
+    bool improved = true;
+    while (improved && attempts_used < max_attempts) {
+        improved = false;
+        std::shuffle(customers.begin(), customers.end(), rng);
+
+        for (int customer : customers) {
+            if (attempts_used >= max_attempts) {
+                break;
+            }
+
+            std::vector<int> facilities(problem.facilities);
+            std::iota(facilities.begin(), facilities.end(), 0);
+            std::shuffle(facilities.begin(), facilities.end(), rng);
+
+            int current_facility = best.customer_assignment[customer];
+
+            for (int facility : facilities) {
+                if (facility == current_facility) {
+                    continue;
+                }
+
+                if (attempts_used >= max_attempts) {
+                    break;
+                }
+
+                ++attempts_used;
+                Solution candidate = best;
+                candidate.customer_assignment[customer] = facility;
+
+                if (!repair_solution(problem, candidate, rng)) {
+                    continue;
+                }
+
+                double logged_best_value = best_value;
+                if (candidate.objective_value < logged_best_value) {
+                    logged_best_value = candidate.objective_value;
+                }
+                vns_progress_row(csv_output, log_iteration, "local", neighborhood, candidate.objective_value, logged_best_value);
+                ++log_iteration;
+
+                if (candidate.objective_value < best.objective_value) {
+                    best = candidate;
+                    if (best.objective_value < best_value) {
+                        best_value = best.objective_value;
+                    }
+                    improved = true;
+                    break;
+                }
+            }
+
+            if (improved) {
+                break;
+            }
+        }
+    }
+
+    return best;
+}
+
+bool shake_swap_two(const Problem& problem, Solution& solution, std::mt19937& rng) {
+    if (problem.customers < 2) {
+        return false;
+    }
+
+    std::uniform_int_distribution<int> customer_draw(0, problem.customers - 1);
+    const int max_attempts = problem.customers * 2;
+
+    for (int attempt = 0; attempt < max_attempts; ++attempt) {
+        int first_customer = customer_draw(rng);
+        int second_customer = customer_draw(rng);
+
+        if (first_customer == second_customer) {
+            continue;
+        }
+
+        int first_facility = solution.customer_assignment[first_customer];
+        int second_facility = solution.customer_assignment[second_customer];
+
+        if (first_facility == second_facility) {
+            continue;
+        }
+
+        Solution candidate = solution;
+        candidate.customer_assignment[first_customer] = second_facility;
+        candidate.customer_assignment[second_customer] = first_facility;
+
+        if (repair_solution(problem, candidate, rng)) {
+            solution = candidate;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool shake_move_two(const Problem& problem, Solution& solution, std::mt19937& rng) {
+    if (problem.customers < 2) {
+        return false;
+    }
+
+    Solution candidate = solution;
+    std::vector<int> customers(problem.customers);
+    std::iota(customers.begin(), customers.end(), 0);
+    std::shuffle(customers.begin(), customers.end(), rng);
+    int moved_customers = 0;
+
+    for (int customer : customers) {
+        if (moved_customers >= 2) {
+            break;
+        }
+
+        int original_facility = candidate.customer_assignment[customer];
+        mutate_customer(problem, candidate, customer, rng);
+        if (candidate.customer_assignment[customer] != original_facility) {
+            ++moved_customers;
+        }
+    }
+
+    if (moved_customers < 2) {
+        return false;
+    }
+
+    solution = candidate;
+    return true;
+}
+
+bool shake_partial_facility_reallocation(const Problem& problem, Solution& solution, std::mt19937& rng) {
+    update_solution_state(problem, solution);
+
+    std::vector<int> open_facilities;
+    for (int facility = 0; facility < problem.facilities; ++facility) {
+        if (solution.facility_open[facility]) {
+            open_facilities.push_back(facility);
+        }
+    }
+
+    if (open_facilities.empty()) {
+        return false;
+    }
+
+    std::shuffle(open_facilities.begin(), open_facilities.end(), rng);
+
+    for (int source_facility : open_facilities) {
+        std::vector<int> facility_customers;
+        for (int customer = 0; customer < problem.customers; ++customer) {
+            if (solution.customer_assignment[customer] == source_facility) {
+                facility_customers.push_back(customer);
+            }
+        }
+
+        if (facility_customers.size() < 2) {
+            continue;
+        }
+
+        std::shuffle(facility_customers.begin(), facility_customers.end(), rng);
+        int customers_to_move = std::min(3, static_cast<int>(facility_customers.size()));
+
+        Solution candidate = solution;
+        int moved_customers = 0;
+
+        for (int index = 0; index < customers_to_move; ++index) {
+            int customer = facility_customers[index];
+            int original_facility = candidate.customer_assignment[customer];
+            mutate_customer(problem, candidate, customer, rng);
+            if (candidate.customer_assignment[customer] != original_facility) {
+                ++moved_customers;
+            }
+        }
+
+        if (moved_customers > 0) {
+            solution = candidate;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+Solution variable_neighborhood_search(const Problem& problem, std::ofstream& csv_output, const VNSConfig& config, std::mt19937& rng) {
+    Solution current = random_solution(problem, rng);
+    int log_iteration = 1;
+    double best_value = current.objective_value;
+    vns_progress_row(csv_output, log_iteration, "init", 0, current.objective_value, best_value);
+    ++log_iteration;
+
+    current = local_search_move_one(problem, current, config.local_search_attempts, 0, log_iteration, best_value, csv_output, rng);
+    Solution best = current;
+    best_value = best.objective_value;
+    const int neighborhood_count = 3;
+
+    for (int iteration = 0; iteration < config.max_iterations; ++iteration) {
+        int neighborhood = 1;
+
+        while (neighborhood <= neighborhood_count) {
+            int used_neighborhood = neighborhood;
+            bool shaken = false;
+            Solution shaken_solution = current;
+
+            for (int attempt = 0; attempt < config.shake_attempts_per_neighborhood; ++attempt) {
+                shaken_solution = current;
+
+                if (used_neighborhood == 1) {
+                    shaken = shake_swap_two(problem, shaken_solution, rng);
+                } else if (used_neighborhood == 2) {
+                    shaken = shake_move_two(problem, shaken_solution, rng);
+                } else {
+                    shaken = shake_partial_facility_reallocation(problem, shaken_solution, rng);
+                }
+
+                if (shaken) {
+                    break;
+                }
+            }
+
+            if (!shaken) {
+                ++neighborhood;
+                continue;
+            }
+
+            vns_progress_row(csv_output, log_iteration, "shake", used_neighborhood, shaken_solution.objective_value, best_value);
+            ++log_iteration;
+
+            Solution candidate = local_search_move_one(
+                problem,
+                shaken_solution,
+                config.local_search_attempts,
+                used_neighborhood,
+                log_iteration,
+                best_value,
+                csv_output,
+                rng
+            );
+
+            if (candidate.objective_value < current.objective_value) {
+                current = candidate;
+                if (current.objective_value < best.objective_value) {
+                    best = current;
+                    best_value = best.objective_value;
+                }
+                neighborhood = 1;
+            } else {
+                ++neighborhood;
+            }
+        }
+    }
+
+    return best;
 }
