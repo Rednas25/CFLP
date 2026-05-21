@@ -20,6 +20,7 @@ const int RANDOM_RUNS = 10000;
 const int EA_RUNS = 10;
 const int SA_RUNS = 10;
 const int VNS_RUNS = 10;
+const int GRASP_RUNS = 10;
 
 const std::string SUMMARY_CSV_PATH = (PROJECT_DIR / "summary.csv").string();
 const std::string EA_RUNS_DIR = (PROJECT_DIR / "ea_runs3").string();
@@ -49,6 +50,12 @@ struct VNSConfig {
     int max_iterations = 50;
     int shake_attempts_per_neighborhood = 5;
     int local_search_attempts = 60;
+};
+
+struct GRASPConfig {
+    int iterations = 100;
+    int rcl_size = 2;
+    int local_search_attempts = 100;
 };
 
 struct Problem {
@@ -128,6 +135,8 @@ bool shake_swap_two(const Problem& problem, Solution& solution, std::mt19937& rn
 bool shake_move_two(const Problem& problem, Solution& solution, std::mt19937& rng);
 bool shake_partial_facility_reallocation(const Problem& problem, Solution& solution, std::mt19937& rng);
 Solution variable_neighborhood_search(const Problem& problem, std::ofstream& csv_output, const VNSConfig& config, std::mt19937& rng);
+Solution grasp_construct_solution(const Problem& problem, const GRASPConfig& config, std::mt19937& rng);
+Solution grasp_algorithm(const Problem& problem, const GRASPConfig& config, std::mt19937& rng);
 void mutate_customer(const Problem& problem, Solution& solution, int customer, std::mt19937& rng);
 void mutate_solution(const Problem& problem, Solution& solution, std::mt19937& rng, double mutation_probability);
 Solution crossover(
@@ -156,6 +165,7 @@ int main(int argc, char* argv[]) {
     std::cout << "3. algorytm ewolucyjny\n";
     std::cout << "4. algorytm symulowanego wyzarzania\n";
     std::cout << "5. algorytm VNS\n";
+    std::cout << "6. algorytm GRASP\n";
     std::cout << "wybor: ";
 
     int method = 0;
@@ -401,6 +411,56 @@ int main(int argc, char* argv[]) {
                 elapsed_ms
             );
             print_solution("Najlepsze rozwiazanie VNS ze wszystkich runow:", best_overall);
+            return 0;
+        }
+
+        case 6: {
+            auto start_time = std::chrono::steady_clock::now();
+            const GRASPConfig grasp_config;
+            std::vector<double> results;
+            results.reserve(GRASP_RUNS);
+            Solution best_overall;
+            bool has_best_solution = false;
+
+            std::cout << "GRASP config:\n";
+            std::cout << "iterations: " << grasp_config.iterations << '\n';
+            std::cout << "rcl_size: " << grasp_config.rcl_size << '\n';
+            std::cout << "local_search_attempts: " << grasp_config.local_search_attempts << '\n';
+            std::cout << "GRASP runs: " << GRASP_RUNS << "\n\n";
+
+            for (int run = 1; run <= GRASP_RUNS; ++run) {
+                std::cout << "========== RUN " << run << " ===========\n\n";
+
+                Solution best = grasp_algorithm(problem, grasp_config, rng);
+                results.push_back(best.objective_value);
+
+                if (!has_best_solution || best.objective_value < best_overall.objective_value) {
+                    best_overall = best;
+                    has_best_solution = true;
+                }
+
+                print_solution("Najlepsze rozwiazanie GRASP:", best);
+                std::cout << '\n';
+            }
+
+            Stats stats = calculate_stats(results);
+            print_stats("Podsumowanie GRASP:", stats);
+            std::cout << '\n';
+
+            auto end_time = std::chrono::steady_clock::now();
+            long long elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+            summary_row(
+                SUMMARY_CSV_PATH,
+                instance_name,
+                "GRASP",
+                GRASP_RUNS,
+                stats.best,
+                stats.worst,
+                stats.avg,
+                stats.std,
+                elapsed_ms
+            );
+            print_solution("Najlepsze rozwiazanie GRASP ze wszystkich runow:", best_overall);
             return 0;
         }
     }
@@ -1393,4 +1453,101 @@ Solution variable_neighborhood_search(const Problem& problem, std::ofstream& csv
     }
 
     return best;
+}
+
+Solution grasp_construct_solution(const Problem& problem, const GRASPConfig& config, std::mt19937& rng) {
+    const int max_attempts = 100;
+    std::vector<int> customer_order(problem.customers);
+    std::iota(customer_order.begin(), customer_order.end(), 0);
+    std::stable_sort(
+        customer_order.begin(),
+        customer_order.end(),
+        [&problem](int left_customer, int right_customer) {
+            return problem.demands[left_customer] > problem.demands[right_customer];
+        }
+    );
+
+    for (int attempt = 0; attempt < max_attempts; ++attempt) {
+        Solution solution;
+        solution.customer_assignment.assign(problem.customers, -1);
+        std::vector<int> remaining_capacity = problem.capacities;
+        std::vector<bool> facility_open(problem.facilities, false);
+        bool success = true;
+
+        for (int customer : customer_order) {
+            std::vector<std::pair<int, double>> candidates;
+            candidates.reserve(problem.facilities);
+
+            for (int facility = 0; facility < problem.facilities; ++facility) {
+                if (remaining_capacity[facility] < problem.demands[customer]) {
+                    continue;
+                }
+
+                double incremental_cost = problem.assignment_costs[customer][facility];
+                if (!facility_open[facility]) {
+                    incremental_cost += problem.opening_costs[facility];
+                }
+                candidates.push_back({facility, incremental_cost});
+            }
+
+            if (candidates.empty()) {
+                success = false;
+                break;
+            }
+
+            std::sort(
+                candidates.begin(),
+                candidates.end(),
+                [](const auto& left, const auto& right) {
+                    return left.second < right.second;
+                }
+            );
+
+            int rcl_size = std::min(config.rcl_size, static_cast<int>(candidates.size()));
+            std::uniform_int_distribution<int> rcl_draw(0, rcl_size - 1);
+            int chosen_index = rcl_draw(rng);
+            int chosen_facility = candidates[chosen_index].first;
+
+            solution.customer_assignment[customer] = chosen_facility;
+            remaining_capacity[chosen_facility] -= problem.demands[customer];
+            facility_open[chosen_facility] = true;
+        }
+
+        if (success) {
+            update_solution_state(problem, solution);
+            solution.objective_value = evaluate_solution(problem, solution);
+            return solution;
+        }
+    }
+
+    return random_solution(problem, rng);
+}
+
+Solution grasp_algorithm(const Problem& problem, const GRASPConfig& config, std::mt19937& rng) {
+    Solution best_overall;
+    bool has_best = false;
+    std::ofstream null_csv;
+
+    for (int iteration = 0; iteration < config.iterations; ++iteration) {
+        Solution current = grasp_construct_solution(problem, config, rng);
+        int dummy_iteration = 0;
+        double best_value = current.objective_value;
+        current = local_search_move_one(
+            problem,
+            current,
+            config.local_search_attempts,
+            0,
+            dummy_iteration,
+            best_value,
+            null_csv,
+            rng
+        );
+
+        if (!has_best || current.objective_value < best_overall.objective_value) {
+            best_overall = current;
+            has_best = true;
+        }
+    }
+
+    return best_overall;
 }
