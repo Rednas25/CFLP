@@ -750,6 +750,7 @@ Solution random_solution(const Problem& problem, std::mt19937& rng) {
 
         for (int customer : customer_order) {
             std::vector<int> available_facilities;
+            available_facilities.reserve(problem.facilities);
 
             for (int facility = 0; facility < problem.facilities; ++facility) {
                 if (remaining_capacity[facility] >= problem.demands[customer]) {
@@ -986,6 +987,7 @@ bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& r
         }
 
         std::vector<int> facility_customers;
+        facility_customers.reserve(problem.customers);
         for (int customer = 0; customer < problem.customers; ++customer) {
             if (solution.customer_assignment[customer] == overloaded_facility) {
                 facility_customers.push_back(customer);
@@ -1002,6 +1004,7 @@ bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& r
 
         for (int customer : facility_customers) {
             std::vector<int> candidate_facilities;
+            candidate_facilities.reserve(problem.facilities);
 
             for (int facility = 0; facility < problem.facilities; ++facility) {
                 if (facility == overloaded_facility) {
@@ -1037,6 +1040,7 @@ void mutate_customer(const Problem& problem, Solution& solution, int customer, s
     int current_facility = solution.customer_assignment[customer];
 
     std::vector<int> candidate_facilities;
+    candidate_facilities.reserve(problem.facilities);
     for (int facility = 0; facility < problem.facilities; ++facility) {
         if (facility != current_facility) {
             candidate_facilities.push_back(facility);
@@ -1247,6 +1251,7 @@ bool shake_partial_facility_reallocation(const Problem& problem, Solution& solut
     update_solution_state(problem, solution);
 
     std::vector<int> open_facilities;
+    open_facilities.reserve(problem.facilities);
     for (int facility = 0; facility < problem.facilities; ++facility) {
         if (solution.facility_open[facility]) {
             open_facilities.push_back(facility);
@@ -1261,6 +1266,7 @@ bool shake_partial_facility_reallocation(const Problem& problem, Solution& solut
 
     for (int source_facility : open_facilities) {
         std::vector<int> facility_customers;
+        facility_customers.reserve(problem.customers);
         for (int customer = 0; customer < problem.customers; ++customer) {
             if (solution.customer_assignment[customer] == source_facility) {
                 facility_customers.push_back(customer);
