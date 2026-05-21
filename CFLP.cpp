@@ -64,6 +64,7 @@ struct Solution {
     std::vector<bool> facility_open;
     std::vector<int> customer_assignment;
     std::vector<int> facility_loads;
+    std::vector<int> facility_customer_counts;
     double objective_value = -1.0;
 };
 
@@ -79,6 +80,7 @@ Problem load_problem(const std::string& path);
 std::string name_from_path(const std::string& path);
 void print_problem(const Problem& problem);
 void update_solution_state(const Problem& problem, Solution& solution);
+void move_customer_inplace(const Problem& problem, Solution& solution, int customer, int new_facility);
 double evaluate_solution(const Problem& problem, Solution& solution);
 Stats calculate_stats(const std::vector<double>& values);
 std::vector<double> population_scores(const std::vector<Solution>& population);
@@ -447,6 +449,7 @@ std::string name_from_path(const std::string& path) {
 void update_solution_state(const Problem& problem, Solution& solution) {
     solution.facility_loads.assign(problem.facilities, 0);
     solution.facility_open.assign(problem.facilities, false);
+    solution.facility_customer_counts.assign(problem.facilities, 0);
 
     for (int customer = 0; customer < static_cast<int>(solution.customer_assignment.size()); ++customer) {
         int facility = solution.customer_assignment[customer];
@@ -456,12 +459,31 @@ void update_solution_state(const Problem& problem, Solution& solution) {
 
         solution.facility_open[facility] = true;
         solution.facility_loads[facility] += problem.demands[customer];
+        solution.facility_customer_counts[facility] += 1;
     }
 }
 
-double evaluate_solution(const Problem& problem, Solution& solution) {
-    update_solution_state(problem, solution);
+void move_customer_inplace(const Problem& problem, Solution& solution, int customer, int new_facility) {
+    int old_facility = solution.customer_assignment[customer];
+    if (old_facility == new_facility) {
+        return;
+    }
 
+    int demand = problem.demands[customer];
+
+    if (old_facility >= 0 && old_facility < problem.facilities) {
+        solution.facility_loads[old_facility] -= demand;
+        solution.facility_customer_counts[old_facility] -= 1;
+        solution.facility_open[old_facility] = (solution.facility_customer_counts[old_facility] > 0);
+    }
+
+    solution.customer_assignment[customer] = new_facility;
+    solution.facility_loads[new_facility] += demand;
+    solution.facility_customer_counts[new_facility] += 1;
+    solution.facility_open[new_facility] = true;
+}
+
+double evaluate_solution(const Problem& problem, Solution& solution) {
     double total_cost = 0.0;
 
     for (int facility = 0; facility < problem.facilities; ++facility) {
@@ -771,6 +793,7 @@ Solution random_solution(const Problem& problem, std::mt19937& rng) {
         }
 
         if (success) {
+            update_solution_state(problem, solution);
             solution.objective_value = evaluate_solution(problem, solution);
             return solution;
         }
@@ -825,6 +848,7 @@ Solution greedy_solution(const Problem& problem) {
         facility_open[best_facility] = true;
     }
 
+    update_solution_state(problem, solution);
     solution.objective_value = evaluate_solution(problem, solution);
     return solution;
 }
@@ -1022,8 +1046,7 @@ bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& r
 
             std::uniform_int_distribution<int> distribution(0, static_cast<int>(candidate_facilities.size()) - 1);
             int new_facility = candidate_facilities[distribution(rng)];
-            solution.customer_assignment[customer] = new_facility;
-            update_solution_state(problem, solution);
+            move_customer_inplace(problem, solution, customer, new_facility);
             repaired_step = true;
             break;
         }
@@ -1055,7 +1078,7 @@ void mutate_customer(const Problem& problem, Solution& solution, int customer, s
     int new_facility = candidate_facilities[distribution(rng)];
 
     Solution original_solution = solution;
-    solution.customer_assignment[customer] = new_facility;
+    move_customer_inplace(problem, solution, customer, new_facility);
 
     if (!repair_solution(problem, solution, rng)) {
         solution = original_solution;
@@ -1148,7 +1171,7 @@ Solution local_search_move_one(
 
                 ++attempts_used;
                 Solution candidate = best;
-                candidate.customer_assignment[customer] = facility;
+                move_customer_inplace(problem, candidate, customer, facility);
 
                 if (!repair_solution(problem, candidate, rng)) {
                     continue;
