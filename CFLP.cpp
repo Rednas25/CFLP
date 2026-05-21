@@ -33,7 +33,7 @@ struct EAConfig {
     int pop_size = 40;
     int gen = 250;
     int tour_size = 7;
-    double mutation_pro = 0.03;
+    double mutation_pro = 0.50;
     double cross_pro = 0.85;
     double better_parent_bias = 0.50;
 };
@@ -1060,11 +1060,10 @@ void mutate_customer(const Problem& problem, Solution& solution, int customer, s
 
 void mutate_solution(const Problem& problem, Solution& solution, std::mt19937& rng, double mutation_probability) {
     std::uniform_real_distribution<double> probability_draw(0.0, 1.0);
-
-    for (int customer = 0; customer < problem.customers; ++customer) {
-        if (probability_draw(rng) < mutation_probability) {
-            mutate_customer(problem, solution, customer, rng);
-        }
+    if (probability_draw(rng) < mutation_probability) {
+        std::uniform_int_distribution<int> customer_draw(0, problem.customers - 1);
+        int customer = customer_draw(rng);
+        mutate_customer(problem, solution, customer, rng);
     }
 }
 
