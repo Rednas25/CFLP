@@ -29,6 +29,7 @@ const std::string VNS_RUNS_DIR = (PROJECT_DIR / "vns_runs").string();
 
 const bool SAVE_PROGRESS_CSV = false;
 const bool EA_VERBOSE = false;
+const bool DETERMINISTIC_REPAIR_TARGET = true;
 
 struct EAConfig {
     int pop_size = 40;
@@ -1087,8 +1088,8 @@ bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& r
         bool repaired_step = false;
 
         for (int customer : facility_customers) {
-            std::vector<int> candidate_facilities;
-            candidate_facilities.reserve(problem.facilities);
+            int best_new_facility = -1;
+            double best_increment = std::numeric_limits<double>::max();
 
             for (int facility = 0; facility < problem.facilities; ++facility) {
                 if (facility == overloaded_facility) {
@@ -1096,17 +1097,50 @@ bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& r
                 }
 
                 if (solution.facility_loads[facility] + problem.demands[customer] <= problem.capacities[facility]) {
-                    candidate_facilities.push_back(facility);
+                    if (DETERMINISTIC_REPAIR_TARGET) {
+                        double increment = problem.assignment_costs[customer][facility];
+                        if (!solution.facility_open[facility]) {
+                            increment += problem.opening_costs[facility];
+                        }
+
+                        if (increment < best_increment) {
+                            best_increment = increment;
+                            best_new_facility = facility;
+                        }
+                    } else {
+                        best_new_facility = facility;
+                        break;
+                    }
                 }
             }
 
-            if (candidate_facilities.empty()) {
+            if (best_new_facility == -1) {
                 continue;
             }
 
-            std::uniform_int_distribution<int> distribution(0, static_cast<int>(candidate_facilities.size()) - 1);
-            int new_facility = candidate_facilities[distribution(rng)];
-            move_customer_inplace(problem, solution, customer, new_facility);
+            if (!DETERMINISTIC_REPAIR_TARGET) {
+                std::vector<int> candidate_facilities;
+                candidate_facilities.reserve(problem.facilities);
+
+                for (int facility = 0; facility < problem.facilities; ++facility) {
+                    if (facility == overloaded_facility) {
+                        continue;
+                    }
+
+                    if (solution.facility_loads[facility] + problem.demands[customer] <= problem.capacities[facility]) {
+                        candidate_facilities.push_back(facility);
+                    }
+                }
+
+                if (candidate_facilities.empty()) {
+                    continue;
+                }
+
+                std::uniform_int_distribution<int> distribution(0, static_cast<int>(candidate_facilities.size()) - 1);
+                best_new_facility = candidate_facilities[distribution(rng)];
+            }
+
+            move_customer_inplace(problem, solution, customer, best_new_facility);
             repaired_step = true;
             break;
         }
