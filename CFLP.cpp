@@ -113,7 +113,7 @@ void create_sa_csv(const std::string& csv_path);
 void sa_progress_row(std::ofstream& csv_output, int iteration, double current_value, double best_value, double temperature);
 std::string make_vns_csv_path(const std::string& instance_name, const VNSConfig& config, int run_number);
 void create_vns_csv(const std::string& csv_path);
-void vns_progress_row(std::ofstream& csv_output, int iteration, const std::string& phase, int neighborhood, double value, double best_value);
+void vns_progress_row(std::ofstream& csv_output, int iteration, double shaken_value, double after_local_search_value, double best_value);
 Solution random_solution(const Problem& problem, std::mt19937& rng);
 Solution greedy_solution(const Problem& problem);
 std::vector<Solution> initialize_population(const Problem& problem, const EAConfig& config, std::mt19937& rng);
@@ -800,18 +800,17 @@ void create_vns_csv(const std::string& csv_path) {
         throw std::runtime_error("Nie udalo sie utworzyc pliku csv: " + csv_path);
     }
 
-    output << "iteration,phase,neighborhood,value,best\n";
+    output << "iteration,shaken,after_local_search,best\n";
 }
 
-void vns_progress_row(std::ofstream& csv_output, int iteration, const std::string& phase, int neighborhood, double value, double best_value) {
+void vns_progress_row(std::ofstream& csv_output, int iteration, double shaken_value, double after_local_search_value, double best_value) {
     if (!csv_output.is_open()) {
         return;
     }
 
     csv_output << iteration << ','
-               << phase << ','
-               << neighborhood << ','
-               << value << ','
+               << shaken_value << ','
+               << after_local_search_value << ','
                << best_value << '\n';
 }
 
@@ -1233,6 +1232,10 @@ Solution local_search_move_one(
     std::ofstream& csv_output,
     std::mt19937& rng
 ) {
+    (void)neighborhood;
+    (void)log_iteration;
+    (void)csv_output;
+
     Solution best = start;
     std::vector<int> customers(problem.customers);
     std::iota(customers.begin(), customers.end(), 0);
@@ -1270,13 +1273,6 @@ Solution local_search_move_one(
                 if (!repair_solution(problem, candidate, rng)) {
                     continue;
                 }
-
-                double logged_best_value = best_value;
-                if (candidate.objective_value < logged_best_value) {
-                    logged_best_value = candidate.objective_value;
-                }
-                vns_progress_row(csv_output, log_iteration, "local", neighborhood, candidate.objective_value, logged_best_value);
-                ++log_iteration;
 
                 if (candidate.objective_value < best.objective_value) {
                     best = candidate;
@@ -1420,14 +1416,17 @@ bool shake_partial_facility_reallocation(const Problem& problem, Solution& solut
 
 Solution variable_neighborhood_search(const Problem& problem, std::ofstream& csv_output, const VNSConfig& config, std::mt19937& rng) {
     Solution current = random_solution(problem, rng);
+    Solution initial_solution = current;
     int log_iteration = 1;
     double best_value = current.objective_value;
-    vns_progress_row(csv_output, log_iteration, "init", 0, current.objective_value, best_value);
-    ++log_iteration;
+    std::ofstream null_csv;
+    int dummy_iteration = 0;
 
-    current = local_search_move_one(problem, current, config.local_search_attempts, 0, log_iteration, best_value, csv_output, rng);
+    current = local_search_move_one(problem, current, config.local_search_attempts, 0, dummy_iteration, best_value, null_csv, rng);
     Solution best = current;
     best_value = best.objective_value;
+    vns_progress_row(csv_output, log_iteration, initial_solution.objective_value, current.objective_value, best_value);
+    ++log_iteration;
     const int neighborhood_count = 3;
 
     for (int iteration = 0; iteration < config.max_iterations; ++iteration) {
@@ -1459,17 +1458,14 @@ Solution variable_neighborhood_search(const Problem& problem, std::ofstream& csv
                 continue;
             }
 
-            vns_progress_row(csv_output, log_iteration, "shake", used_neighborhood, shaken_solution.objective_value, best_value);
-            ++log_iteration;
-
             Solution candidate = local_search_move_one(
                 problem,
                 shaken_solution,
                 config.local_search_attempts,
                 used_neighborhood,
-                log_iteration,
+                dummy_iteration,
                 best_value,
-                csv_output,
+                null_csv,
                 rng
             );
 
@@ -1479,8 +1475,12 @@ Solution variable_neighborhood_search(const Problem& problem, std::ofstream& csv
                     best = current;
                     best_value = best.objective_value;
                 }
+                vns_progress_row(csv_output, log_iteration, shaken_solution.objective_value, candidate.objective_value, best_value);
+                ++log_iteration;
                 neighborhood = 1;
             } else {
+                vns_progress_row(csv_output, log_iteration, shaken_solution.objective_value, candidate.objective_value, best_value);
+                ++log_iteration;
                 ++neighborhood;
             }
         }
