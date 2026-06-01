@@ -23,11 +23,12 @@ const int VNS_RUNS = 10;
 const int GRASP_RUNS = 10;
 
 const std::string SUMMARY_CSV_PATH = (PROJECT_DIR / "summary.csv").string();
-const std::string EA_RUNS_DIR = (PROJECT_DIR / "ea_runs3").string();
+const std::string EA_RUNS_DIR = (PROJECT_DIR / "ea_runs4").string();
 const std::string SA_RUNS_DIR = (PROJECT_DIR / "sa_runs").string();
 const std::string VNS_RUNS_DIR = (PROJECT_DIR / "vns_runs").string();
+const std::string GRASP_RUNS_DIR = (PROJECT_DIR / "grasp_runs").string();
 
-const bool SAVE_PROGRESS_CSV = false;
+const bool SAVE_PROGRESS_CSV = true;
 const bool EA_VERBOSE = false;
 const bool DETERMINISTIC_REPAIR_TARGET = true;
 
@@ -35,7 +36,7 @@ struct EAConfig {
     int pop_size = 40;
     int gen = 250;
     int tour_size = 7;
-    double mutation_pro = 0.50;
+    double mutation_pro = 0.90;
     double cross_pro = 0.85;
     double better_parent_bias = 0.50;
 };
@@ -114,6 +115,9 @@ void sa_progress_row(std::ofstream& csv_output, int iteration, double current_va
 std::string make_vns_csv_path(const std::string& instance_name, const VNSConfig& config, int run_number);
 void create_vns_csv(const std::string& csv_path);
 void vns_progress_row(std::ofstream& csv_output, int iteration, double shaken_value, double after_local_search_value, double best_value);
+std::string make_grasp_csv_path(const std::string& instance_name, const GRASPConfig& config, int run_number);
+void create_grasp_csv(const std::string& csv_path);
+void grasp_progress_row(std::ofstream& csv_output, int iteration, double constructed_value, double improved_value, double best_value);
 Solution random_solution(const Problem& problem, std::mt19937& rng);
 Solution greedy_solution(const Problem& problem);
 std::vector<Solution> initialize_population(const Problem& problem, const EAConfig& config, std::mt19937& rng);
@@ -137,7 +141,7 @@ bool shake_move_two(const Problem& problem, Solution& solution, std::mt19937& rn
 bool shake_partial_facility_reallocation(const Problem& problem, Solution& solution, std::mt19937& rng);
 Solution variable_neighborhood_search(const Problem& problem, std::ofstream& csv_output, const VNSConfig& config, std::mt19937& rng);
 Solution grasp_construct_solution(const Problem& problem, const GRASPConfig& config, std::mt19937& rng);
-Solution grasp_algorithm(const Problem& problem, const GRASPConfig& config, std::mt19937& rng);
+Solution grasp_algorithm(const Problem& problem, std::ofstream& csv_output, const GRASPConfig& config, std::mt19937& rng);
 void mutate_customer(const Problem& problem, Solution& solution, int customer, std::mt19937& rng);
 void mutate_solution(const Problem& problem, Solution& solution, std::mt19937& rng, double mutation_probability);
 Solution crossover(
@@ -430,9 +434,19 @@ int main(int argc, char* argv[]) {
             std::cout << "GRASP runs: " << GRASP_RUNS << "\n\n";
 
             for (int run = 1; run <= GRASP_RUNS; ++run) {
+                std::ofstream grasp_progress_output;
+                if (SAVE_PROGRESS_CSV) {
+                    std::string grasp_progress_csv_path = make_grasp_csv_path(instance_name, grasp_config, run);
+                    create_grasp_csv(grasp_progress_csv_path);
+                    grasp_progress_output.open(grasp_progress_csv_path, std::ios::app);
+                    if (!grasp_progress_output) {
+                        throw std::runtime_error("Nie udalo sie otworzyc pliku csv: " + grasp_progress_csv_path);
+                    }
+                }
+
                 std::cout << "========== RUN " << run << " ===========\n\n";
 
-                Solution best = grasp_algorithm(problem, grasp_config, rng);
+                Solution best = grasp_algorithm(problem, grasp_progress_output, grasp_config, rng);
                 results.push_back(best.objective_value);
 
                 if (!has_best_solution || best.objective_value < best_overall.objective_value) {
@@ -811,6 +825,39 @@ void vns_progress_row(std::ofstream& csv_output, int iteration, double shaken_va
     csv_output << iteration << ','
                << shaken_value << ','
                << after_local_search_value << ','
+               << best_value << '\n';
+}
+
+std::string make_grasp_csv_path(const std::string& instance_name, const GRASPConfig& config, int run_number) {
+    std::filesystem::create_directories(GRASP_RUNS_DIR);
+
+    std::string file_name = instance_name
+        + "_iter" + std::to_string(config.iterations)
+        + "_rcl" + std::to_string(config.rcl_size)
+        + "_ls" + std::to_string(config.local_search_attempts)
+        + "_run" + std::to_string(run_number)
+        + ".csv";
+
+    return GRASP_RUNS_DIR + "/" + file_name;
+}
+
+void create_grasp_csv(const std::string& csv_path) {
+    std::ofstream output(csv_path);
+    if (!output) {
+        throw std::runtime_error("Nie udalo sie utworzyc pliku csv: " + csv_path);
+    }
+
+    output << "iteration,constructed,improved,best\n";
+}
+
+void grasp_progress_row(std::ofstream& csv_output, int iteration, double constructed_value, double improved_value, double best_value) {
+    if (!csv_output.is_open()) {
+        return;
+    }
+
+    csv_output << iteration << ','
+               << constructed_value << ','
+               << improved_value << ','
                << best_value << '\n';
 }
 
@@ -1557,13 +1604,14 @@ Solution grasp_construct_solution(const Problem& problem, const GRASPConfig& con
     return random_solution(problem, rng);
 }
 
-Solution grasp_algorithm(const Problem& problem, const GRASPConfig& config, std::mt19937& rng) {
+Solution grasp_algorithm(const Problem& problem, std::ofstream& csv_output, const GRASPConfig& config, std::mt19937& rng) {
     Solution best_overall;
     bool has_best = false;
     std::ofstream null_csv;
 
     for (int iteration = 0; iteration < config.iterations; ++iteration) {
         Solution current = grasp_construct_solution(problem, config, rng);
+        double constructed_value = current.objective_value;
         int dummy_iteration = 0;
         double best_value = current.objective_value;
         current = local_search_move_one(
@@ -1581,6 +1629,14 @@ Solution grasp_algorithm(const Problem& problem, const GRASPConfig& config, std:
             best_overall = current;
             has_best = true;
         }
+
+        grasp_progress_row(
+            csv_output,
+            iteration + 1,
+            constructed_value,
+            current.objective_value,
+            best_overall.objective_value
+        );
     }
 
     return best_overall;
