@@ -2284,73 +2284,111 @@ static void scatter_svg(const std::filesystem::path& path,
                         const std::vector<std::pair<double,double>>& pts, // {x, avg}
                         const std::vector<double>& stds)
 {
-    const int W=850, H=520, ML=75, MR=25, MT=45, MB=55;
+    const int W=860, H=520, ML=80, MR=30, MT=50, MB=55;
     const int pw = W-ML-MR, ph = H-MT-MB;
 
     if (pts.empty()) return;
+
+    // Sort by x for line chart
+    std::vector<int> idx(pts.size());
+    std::iota(idx.begin(), idx.end(), 0);
+    std::sort(idx.begin(), idx.end(), [&](int a, int b){ return pts[a].first < pts[b].first; });
+
+    // X range: full
     double xmin=pts[0].first, xmax=pts[0].first;
-    double ymin=pts[0].second, ymax=pts[0].second;
-    for (auto& [x,y]: pts){ xmin=std::min(xmin,x); xmax=std::max(xmax,x);
-                              ymin=std::min(ymin,y); ymax=std::max(ymax,y); }
+    for (auto& [x,y]: pts){ xmin=std::min(xmin,x); xmax=std::max(xmax,x); }
+
+    // Y range: clip at 90th percentile to avoid outliers squashing the chart
+    std::vector<double> ys; ys.reserve(pts.size());
+    for (auto& [x,y]: pts) ys.push_back(y);
+    std::sort(ys.begin(), ys.end());
+    double ymin = ys.front();
+    double ymax = ys[std::min((int)ys.size()-1, (int)(ys.size()*0.90))];
+    // ensure ymax > ymin
+    if (ymax - ymin < 1e-9) ymax = ymin + 1;
+
     double xr=xmax-xmin; if(xr<1e-9) xr=1;
-    double yr=ymax-ymin; if(yr<1e-9) yr=1;
-    xmin-=xr*0.05; xmax+=xr*0.05; ymin-=yr*0.05; ymax+=yr*0.05;
-    xr=xmax-xmin; yr=ymax-ymin;
+    double yr=ymax-ymin;
+    // small padding
+    xmin -= xr*0.03; xmax += xr*0.03; xr = xmax-xmin;
+    ymin -= yr*0.05; ymax += yr*0.10; yr = ymax-ymin;
 
     auto px=[&](double x)->int{ return ML+(int)((x-xmin)/xr*pw); };
-    auto py=[&](double y)->int{ return MT+ph-(int)((y-ymin)/yr*ph); };
+    auto py=[&](double y)->int{
+        int yp = MT+ph-(int)((y-ymin)/yr*ph);
+        return std::max(MT, std::min(MT+ph, yp)); // clamp to chart area
+    };
 
     // find best (lowest avg)
     int bi=0; for(int i=1;i<(int)pts.size();++i) if(pts[i].second<pts[bi].second) bi=i;
 
+    // count clipped points
+    int clipped=0; for(auto& [x,y]: pts) if(y>ymax) ++clipped;
+
     std::ofstream f(path);
     f << "<?xml version=\"1.0\"?>\n"
       << "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\""<<W<<"\" height=\""<<H<<"\">\n"
-      << "<rect width=\""<<W<<"\" height=\""<<H<<"\" fill=\"#fafafa\"/>\n"
-      << "<text x=\""<<W/2<<"\" y=\"28\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"sans-serif\">"<<title<<"</text>\n";
+      << "<rect width=\""<<W<<"\" height=\""<<H<<"\" fill=\"white\"/>\n"
+      << "<text x=\""<<W/2<<"\" y=\"30\" text-anchor=\"middle\" font-size=\"14\" font-weight=\"bold\" font-family=\"sans-serif\">"<<title<<"</text>\n";
 
-    // grid
+    // clip region
+    f << "<clipPath id=\"cp\"><rect x=\""<<ML<<"\" y=\""<<MT<<"\" width=\""<<pw<<"\" height=\""<<ph<<"\"/></clipPath>\n";
+
+    // horizontal grid lines
     for(int i=0;i<=5;++i){
         double y=ymin+yr*i/5; int yp=py(y);
-        f<<"<line x1=\""<<ML<<"\" y1=\""<<yp<<"\" x2=\""<<ML+pw<<"\" y2=\""<<yp<<"\" stroke=\"#ddd\" stroke-width=\"1\"/>\n";
+        f<<"<line x1=\""<<ML<<"\" y1=\""<<yp<<"\" x2=\""<<ML+pw<<"\" y2=\""<<yp<<"\" stroke=\"#e0e0e0\" stroke-width=\"1\"/>\n";
         std::ostringstream s; s<<std::fixed<<std::setprecision(0)<<y;
-        f<<"<text x=\""<<ML-4<<"\" y=\""<<yp+4<<"\" text-anchor=\"end\" font-size=\"10\" font-family=\"sans-serif\">"<<s.str()<<"</text>\n";
+        f<<"<text x=\""<<ML-5<<"\" y=\""<<yp+4<<"\" text-anchor=\"end\" font-size=\"10\" font-family=\"sans-serif\">"<<s.str()<<"</text>\n";
     }
-    // x ticks
-    for(int i=0;i<=5;++i){
-        double x=xmin+xr*i/5; int xp=px(x);
-        f<<"<line x1=\""<<xp<<"\" y1=\""<<MT+ph<<"\" x2=\""<<xp<<"\" y2=\""<<MT+ph+4<<"\" stroke=\"#888\"/>\n";
-        std::ostringstream s; s<<std::fixed<<std::setprecision(2)<<x;
-        f<<"<text x=\""<<xp<<"\" y=\""<<MT+ph+16<<"\" text-anchor=\"middle\" font-size=\"9\" font-family=\"sans-serif\">"<<s.str()<<"</text>\n";
+
+    // std band (shaded area between avg-std and avg+std), drawn before line
+    f << "<g clip-path=\"url(#cp)\">\n";
+    // upper band edge (avg+std, sorted by x)
+    f << "<polygon fill=\"#4e79a7\" fill-opacity=\"0.12\" points=\"";
+    for(int i : idx) f << px(pts[i].first) << "," << py(pts[i].second - (i<(int)stds.size()?stds[i]:0)) << " ";
+    for(int k=(int)idx.size()-1;k>=0;--k){int i=idx[k]; f << px(pts[i].first) << "," << py(pts[i].second + (i<(int)stds.size()?stds[i]:0)) << " ";}
+    f << "\"/>\n";
+
+    // main line (avg, sorted by x)
+    f << "<polyline fill=\"none\" stroke=\"#4e79a7\" stroke-width=\"2\" stroke-linejoin=\"round\" points=\"";
+    for(int i : idx) f << px(pts[i].first) << "," << py(pts[i].second) << " ";
+    f << "\"/>\n";
+
+    // dots
+    for(int i : idx){
+        int cx=px(pts[i].first), cy=py(pts[i].second);
+        bool is_best = (i==bi);
+        f<<"<circle cx=\""<<cx<<"\" cy=\""<<cy<<"\" r=\""<<(is_best?6:3)<<"\" fill=\""<<(is_best?"#e15759":"#4e79a7")<<"\" stroke=\"white\" stroke-width=\"1\"/>\n";
     }
+    f << "</g>\n";
+
     // axes
     f<<"<line x1=\""<<ML<<"\" y1=\""<<MT<<"\" x2=\""<<ML<<"\" y2=\""<<MT+ph<<"\" stroke=\"#333\" stroke-width=\"1.5\"/>\n";
     f<<"<line x1=\""<<ML<<"\" y1=\""<<MT+ph<<"\" x2=\""<<ML+pw<<"\" y2=\""<<MT+ph<<"\" stroke=\"#333\" stroke-width=\"1.5\"/>\n";
-    // xlabel
-    f<<"<text x=\""<<ML+pw/2<<"\" y=\""<<H-5<<"\" text-anchor=\"middle\" font-size=\"12\" font-family=\"sans-serif\">"<<xlabel<<"</text>\n";
-    // ylabel (rotated)
-    f<<"<text transform=\"rotate(-90,"<<18<<","<<MT+ph/2<<")\" x=\""<<18<<"\" y=\""<<MT+ph/2+4<<"\" text-anchor=\"middle\" font-size=\"11\" font-family=\"sans-serif\">Objective value</text>\n";
 
-    // std error bars + dots
-    for(int i=0;i<(int)pts.size();++i){
-        double t=(yr>1e-9)?(pts[i].second-ymin)/yr:0.5;
-        int r=(int)(220*t), g=(int)(180*(1-t)), b=80;
-        std::string col="rgb("+std::to_string(r)+","+std::to_string(g)+","+std::to_string(b)+")";
-        int cx=px(pts[i].first), cy=py(pts[i].second);
-        if(i<(int)stds.size() && stds[i]>0){
-            int top_y=py(pts[i].second+stds[i]), bot_y=py(pts[i].second-stds[i]);
-            f<<"<line x1=\""<<cx<<"\" y1=\""<<top_y<<"\" x2=\""<<cx<<"\" y2=\""<<bot_y<<"\" stroke=\""<<col<<"\" stroke-width=\"1\" stroke-opacity=\"0.5\"/>\n";
-        }
-        f<<"<circle cx=\""<<cx<<"\" cy=\""<<cy<<"\" r=\"5\" fill=\""<<col<<"\" fill-opacity=\"0.75\"/>\n";
+    // x axis ticks
+    for(int i=0;i<=6;++i){
+        double x=xmin+xr*i/6; int xp=px(x);
+        f<<"<line x1=\""<<xp<<"\" y1=\""<<MT+ph<<"\" x2=\""<<xp<<"\" y2=\""<<MT+ph+4<<"\" stroke=\"#555\"/>\n";
+        std::ostringstream s; s<<std::fixed<<std::setprecision(2)<<x;
+        f<<"<text x=\""<<xp<<"\" y=\""<<MT+ph+16<<"\" text-anchor=\"middle\" font-size=\"9\" font-family=\"sans-serif\">"<<s.str()<<"</text>\n";
     }
-    // highlight best
+
+    // axis labels
+    f<<"<text x=\""<<ML+pw/2<<"\" y=\""<<H-4<<"\" text-anchor=\"middle\" font-size=\"12\" font-family=\"sans-serif\">"<<xlabel<<"</text>\n";
+    f<<"<text transform=\"rotate(-90,"<<16<<","<<MT+ph/2<<")\" x=\""<<16<<"\" y=\""<<MT+ph/2+4<<"\" text-anchor=\"middle\" font-size=\"11\" font-family=\"sans-serif\">avg objective</text>\n";
+
+    // best label
     {
         int cx=px(pts[bi].first), cy=py(pts[bi].second);
-        f<<"<circle cx=\""<<cx<<"\" cy=\""<<cy<<"\" r=\"8\" fill=\"none\" stroke=\"gold\" stroke-width=\"2.5\"/>\n";
-        f<<"<text x=\""<<cx+10<<"\" y=\""<<cy-6<<"\" font-size=\"10\" fill=\"#333\" font-family=\"sans-serif\">best</text>\n";
+        f<<"<text x=\""<<cx+9<<"\" y=\""<<cy-5<<"\" font-size=\"10\" fill=\"#e15759\" font-weight=\"bold\" font-family=\"sans-serif\">best</text>\n";
     }
-    // legend colour bar note
-    f<<"<text x=\""<<W-MR-2<<"\" y=\""<<MT+12<<"\" text-anchor=\"end\" font-size=\"9\" fill=\"#888\" font-family=\"sans-serif\">colour: blue=best, red=worst</text>\n";
+
+    // clipped note
+    if(clipped>0){
+        f<<"<text x=\""<<ML+pw-2<<"\" y=\""<<MT+14<<"\" text-anchor=\"end\" font-size=\"9\" fill=\"#999\" font-family=\"sans-serif\">"<<clipped<<" outlier(s) not shown</text>\n";
+    }
 
     f<<"</svg>\n";
 }
