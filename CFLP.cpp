@@ -3,12 +3,14 @@
 #include <cmath>
 #include <fstream>
 #include <filesystem>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <numeric>
 #include <optional>
 #include <random>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -153,6 +155,7 @@ Solution crossover(
 );
 void run_batch_experiments();
 void run_tuning();
+void run_budget_experiments();
 
 int main(int argc, char* argv[]) {
     if (argc > 1 && std::string(argv[1]) == "--batch") {
@@ -161,6 +164,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string(argv[1]) == "--tune") {
         run_tuning();
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "--budget") {
+        run_budget_experiments();
         return 0;
     }
     std::string path = (PROJECT_DIR / DEFAULT_INSTANCE_NAME).string();
@@ -2246,4 +2253,694 @@ void run_tuning() {
     std::cout << "\n=== TUNING COMPLETE ===\n";
     std::cout << "Tuning CSVs:    " << (tune_dir).string() << "/tuning_*.csv\n";
     std::cout << "Final results:  " << final_csv << "\n";
+}
+
+// ── Budget Experiment mode ─────────────────────────────────────────────────
+// 100 configs x 10 runs x budget=100k evals per run, all on cap41_ss.
+// Budget enforced:
+//   EA:    pop * (1 + gen) == BUDGET  (gen derived from pop)
+//   SA:    hard eval counter, stop when evals >= BUDGET
+//   VNS:   iter * (shake + ls) == BUDGET  (ls derived from iter+shake)
+//   GRASP: iter * (1 + ls)     == BUDGET  (ls derived from iter)
+
+namespace budget_detail {
+
+namespace fs = std::filesystem;
+
+struct ConfigResult {
+    int    id;
+    double best, avg, std_dev;
+    long long time_ms;
+    std::vector<double> raw; // individual run values
+    // descriptive param string
+    std::string pstr;
+};
+
+// ── minimal inline SVG scatter plot ─────────────────────────────────────
+
+static void scatter_svg(const std::filesystem::path& path,
+                        const std::string& title,
+                        const std::string& xlabel,
+                        const std::vector<std::pair<double,double>>& pts, // {x, avg}
+                        const std::vector<double>& stds)
+{
+    const int W=850, H=520, ML=75, MR=25, MT=45, MB=55;
+    const int pw = W-ML-MR, ph = H-MT-MB;
+
+    if (pts.empty()) return;
+    double xmin=pts[0].first, xmax=pts[0].first;
+    double ymin=pts[0].second, ymax=pts[0].second;
+    for (auto& [x,y]: pts){ xmin=std::min(xmin,x); xmax=std::max(xmax,x);
+                              ymin=std::min(ymin,y); ymax=std::max(ymax,y); }
+    double xr=xmax-xmin; if(xr<1e-9) xr=1;
+    double yr=ymax-ymin; if(yr<1e-9) yr=1;
+    xmin-=xr*0.05; xmax+=xr*0.05; ymin-=yr*0.05; ymax+=yr*0.05;
+    xr=xmax-xmin; yr=ymax-ymin;
+
+    auto px=[&](double x)->int{ return ML+(int)((x-xmin)/xr*pw); };
+    auto py=[&](double y)->int{ return MT+ph-(int)((y-ymin)/yr*ph); };
+
+    // find best (lowest avg)
+    int bi=0; for(int i=1;i<(int)pts.size();++i) if(pts[i].second<pts[bi].second) bi=i;
+
+    std::ofstream f(path);
+    f << "<?xml version=\"1.0\"?>\n"
+      << "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\""<<W<<"\" height=\""<<H<<"\">\n"
+      << "<rect width=\""<<W<<"\" height=\""<<H<<"\" fill=\"#fafafa\"/>\n"
+      << "<text x=\""<<W/2<<"\" y=\"28\" text-anchor=\"middle\" font-size=\"15\" font-weight=\"bold\" font-family=\"sans-serif\">"<<title<<"</text>\n";
+
+    // grid
+    for(int i=0;i<=5;++i){
+        double y=ymin+yr*i/5; int yp=py(y);
+        f<<"<line x1=\""<<ML<<"\" y1=\""<<yp<<"\" x2=\""<<ML+pw<<"\" y2=\""<<yp<<"\" stroke=\"#ddd\" stroke-width=\"1\"/>\n";
+        std::ostringstream s; s<<std::fixed<<std::setprecision(0)<<y;
+        f<<"<text x=\""<<ML-4<<"\" y=\""<<yp+4<<"\" text-anchor=\"end\" font-size=\"10\" font-family=\"sans-serif\">"<<s.str()<<"</text>\n";
+    }
+    // x ticks
+    for(int i=0;i<=5;++i){
+        double x=xmin+xr*i/5; int xp=px(x);
+        f<<"<line x1=\""<<xp<<"\" y1=\""<<MT+ph<<"\" x2=\""<<xp<<"\" y2=\""<<MT+ph+4<<"\" stroke=\"#888\"/>\n";
+        std::ostringstream s; s<<std::fixed<<std::setprecision(2)<<x;
+        f<<"<text x=\""<<xp<<"\" y=\""<<MT+ph+16<<"\" text-anchor=\"middle\" font-size=\"9\" font-family=\"sans-serif\">"<<s.str()<<"</text>\n";
+    }
+    // axes
+    f<<"<line x1=\""<<ML<<"\" y1=\""<<MT<<"\" x2=\""<<ML<<"\" y2=\""<<MT+ph<<"\" stroke=\"#333\" stroke-width=\"1.5\"/>\n";
+    f<<"<line x1=\""<<ML<<"\" y1=\""<<MT+ph<<"\" x2=\""<<ML+pw<<"\" y2=\""<<MT+ph<<"\" stroke=\"#333\" stroke-width=\"1.5\"/>\n";
+    // xlabel
+    f<<"<text x=\""<<ML+pw/2<<"\" y=\""<<H-5<<"\" text-anchor=\"middle\" font-size=\"12\" font-family=\"sans-serif\">"<<xlabel<<"</text>\n";
+    // ylabel (rotated)
+    f<<"<text transform=\"rotate(-90,"<<18<<","<<MT+ph/2<<")\" x=\""<<18<<"\" y=\""<<MT+ph/2+4<<"\" text-anchor=\"middle\" font-size=\"11\" font-family=\"sans-serif\">Objective value</text>\n";
+
+    // std error bars + dots
+    for(int i=0;i<(int)pts.size();++i){
+        double t=(yr>1e-9)?(pts[i].second-ymin)/yr:0.5;
+        int r=(int)(220*t), g=(int)(180*(1-t)), b=80;
+        std::string col="rgb("+std::to_string(r)+","+std::to_string(g)+","+std::to_string(b)+")";
+        int cx=px(pts[i].first), cy=py(pts[i].second);
+        if(i<(int)stds.size() && stds[i]>0){
+            int top_y=py(pts[i].second+stds[i]), bot_y=py(pts[i].second-stds[i]);
+            f<<"<line x1=\""<<cx<<"\" y1=\""<<top_y<<"\" x2=\""<<cx<<"\" y2=\""<<bot_y<<"\" stroke=\""<<col<<"\" stroke-width=\"1\" stroke-opacity=\"0.5\"/>\n";
+        }
+        f<<"<circle cx=\""<<cx<<"\" cy=\""<<cy<<"\" r=\"5\" fill=\""<<col<<"\" fill-opacity=\"0.75\"/>\n";
+    }
+    // highlight best
+    {
+        int cx=px(pts[bi].first), cy=py(pts[bi].second);
+        f<<"<circle cx=\""<<cx<<"\" cy=\""<<cy<<"\" r=\"8\" fill=\"none\" stroke=\"gold\" stroke-width=\"2.5\"/>\n";
+        f<<"<text x=\""<<cx+10<<"\" y=\""<<cy-6<<"\" font-size=\"10\" fill=\"#333\" font-family=\"sans-serif\">best</text>\n";
+    }
+    // legend colour bar note
+    f<<"<text x=\""<<W-MR-2<<"\" y=\""<<MT+12<<"\" text-anchor=\"end\" font-size=\"9\" fill=\"#888\" font-family=\"sans-serif\">colour: blue=best, red=worst</text>\n";
+
+    f<<"</svg>\n";
+}
+
+} // namespace budget_detail
+
+void run_budget_experiments() {
+    namespace fs  = std::filesystem;
+    namespace bd  = budget_detail;
+
+    const fs::path bdir  = PROJECT_DIR / "data"  / "budget";
+    const fs::path pdir  = PROJECT_DIR / "plots" / "budget";
+    const fs::path mdout = PROJECT_DIR / "SPRAWOZDANIE_BUDGET.md";
+
+    fs::create_directories(bdir);
+    fs::create_directories(pdir);
+
+    const int BUDGET  = 100000;
+    const int CONFIGS = 100;
+    const int RUNS    = 10;
+    const int PSEED   = 77;
+
+    auto elapsed_ms = [](std::chrono::steady_clock::time_point t0) -> long long {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - t0).count();
+    };
+
+    Problem problem = load_problem((PROJECT_DIR / "cap41_ss.txt").string());
+    std::mt19937 rng(std::random_device{}());
+    std::mt19937 prng(PSEED);
+
+    // ── Budget-aware SA: counts neighbour evaluations, stops at BUDGET ────────
+    auto sa_budget_run = [&](const SAConfig& cfg) -> double {
+        int evals = 0;
+        Solution cur = random_solution(problem, rng); ++evals;
+        repair_solution(problem, cur, rng);
+        Solution best = cur;
+        double temp = cfg.initial_temp;
+        std::uniform_real_distribution<double> uni(0.0, 1.0);
+        while (temp > cfg.min_temp && evals < BUDGET) {
+            for (int i = 0; i < cfg.iter_per_temp && evals < BUDGET; ++i) {
+                Solution nb = sa_neighbor(problem, cur, rng); ++evals;
+                double d = nb.objective_value - cur.objective_value;
+                if (d < 0.0 || uni(rng) < std::exp(-d / temp)) cur = nb;
+                if (cur.objective_value < best.objective_value) best = cur;
+            }
+            temp *= cfg.cooling_rate;
+        }
+        return best.objective_value;
+    };
+
+    // helper: Stats from raw vector
+    auto mk_stats = [](const std::vector<double>& v) -> Stats {
+        return calculate_stats(v);
+    };
+
+    std::vector<bd::ConfigResult> ea_res, sa_res, vns_res, grasp_res;
+
+    // ── 1. EA ─────────────────────────────────────────────────────────────────
+    {
+        const std::string csv_path = (bdir / "ea_budget.csv").string();
+        { std::ofstream f(csv_path);
+          f << "config_id,pop,gen_actual,tour,pm,px,bias,eval_budget,runs,best,avg,std,time_ms\n"; }
+
+        std::uniform_int_distribution<int>    pop_d(5, 300);
+        std::uniform_int_distribution<int>   tour_d(2,  15);
+        std::uniform_real_distribution<double> pm_d(0.1, 0.95);
+        std::uniform_real_distribution<double> px_d(0.5, 0.95);
+        std::uniform_real_distribution<double> bias_d(0.3, 0.8);
+
+        std::cout << "\n=== EA: " << CONFIGS << " configs x " << RUNS
+                  << " runs (budget=" << BUDGET << " evals each) ===\n";
+
+        for (int v = 1; v <= CONFIGS; ++v) {
+            EAConfig cfg;
+            cfg.pop_size             = pop_d(prng);
+            cfg.gen                  = std::max(1, BUDGET / cfg.pop_size - 1);
+            cfg.tour_size            = std::min(tour_d(prng), cfg.pop_size);
+            cfg.mutation_pro         = pm_d(prng);
+            cfg.cross_pro            = px_d(prng);
+            cfg.better_parent_bias   = bias_d(prng);
+            int actual_evals = cfg.pop_size * (1 + cfg.gen);
+
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> raw;
+            EA_RUNS_DIR = (bdir / "ea_runs").string();
+            for (int r = 0; r < RUNS; ++r) {
+                std::ofstream null_csv;
+                raw.push_back(evolutionary_algorithm(problem, null_csv, cfg, rng).objective_value);
+            }
+            long long ms = elapsed_ms(t0);
+            Stats st = mk_stats(raw);
+
+            { std::ofstream f(csv_path, std::ios::app);
+              f << v << ',' << cfg.pop_size << ',' << cfg.gen << ',' << cfg.tour_size << ','
+                << std::fixed << std::setprecision(4) << cfg.mutation_pro << ','
+                << cfg.cross_pro << ',' << cfg.better_parent_bias << ','
+                << actual_evals << ',' << RUNS << ','
+                << st.best << ',' << std::setprecision(3) << st.avg << ',' << st.std << ','
+                << ms << '\n'; }
+
+            bd::ConfigResult cr; cr.id=v; cr.best=st.best; cr.avg=st.avg; cr.std_dev=st.std;
+            cr.time_ms=ms; cr.raw=raw;
+            std::ostringstream ps; ps<<"pop="<<cfg.pop_size<<" gen="<<cfg.gen
+                <<" pm="<<std::fixed<<std::setprecision(2)<<cfg.mutation_pro; cr.pstr=ps.str();
+            ea_res.push_back(cr);
+
+            std::cout << "[" << std::setw(3) << v << "] pop=" << std::setw(3) << cfg.pop_size
+                      << " gen=" << std::setw(5) << cfg.gen
+                      << " pm=" << std::fixed << std::setprecision(2) << cfg.mutation_pro
+                      << "  avg=" << std::setprecision(0) << st.avg
+                      << "  std=" << st.std << "\n";
+            std::cout.flush();
+        }
+    }
+
+    // ── 2. SA ─────────────────────────────────────────────────────────────────
+    {
+        const std::string csv_path = (bdir / "sa_budget.csv").string();
+        { std::ofstream f(csv_path);
+          f << "config_id,T0,cool,min_T,ipt,eval_budget,runs,best,avg,std,time_ms\n"; }
+
+        std::uniform_real_distribution<double>  T0_d(500.0,   800000.0);
+        std::uniform_real_distribution<double> cool_d(0.90,     0.9999);
+        std::uniform_real_distribution<double> minT_d(0.1,       20.0);
+        std::uniform_int_distribution<int>      ipt_d(1,          20);
+
+        std::cout << "\n=== SA: " << CONFIGS << " configs x " << RUNS
+                  << " runs (budget=" << BUDGET << " evals each) ===\n";
+
+        for (int v = 1; v <= CONFIGS; ++v) {
+            SAConfig cfg;
+            cfg.initial_temp  = T0_d(prng);
+            cfg.cooling_rate  = cool_d(prng);
+            cfg.min_temp      = minT_d(prng);
+            cfg.iter_per_temp = ipt_d(prng);
+
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> raw;
+            for (int r = 0; r < RUNS; ++r)
+                raw.push_back(sa_budget_run(cfg));
+            long long ms = elapsed_ms(t0);
+            Stats st = mk_stats(raw);
+
+            { std::ofstream f(csv_path, std::ios::app);
+              f << v << ','
+                << std::fixed << std::setprecision(1) << cfg.initial_temp << ','
+                << std::setprecision(5) << cfg.cooling_rate << ','
+                << std::setprecision(2) << cfg.min_temp << ','
+                << cfg.iter_per_temp << ','
+                << BUDGET << ',' << RUNS << ','
+                << st.best << ',' << std::setprecision(3) << st.avg << ',' << st.std << ','
+                << ms << '\n'; }
+
+            bd::ConfigResult cr; cr.id=v; cr.best=st.best; cr.avg=st.avg; cr.std_dev=st.std;
+            cr.time_ms=ms; cr.raw=raw;
+            std::ostringstream ps; ps<<"T0="<<std::fixed<<std::setprecision(0)<<cfg.initial_temp
+                <<" cool="<<std::setprecision(4)<<cfg.cooling_rate
+                <<" ipt="<<cfg.iter_per_temp; cr.pstr=ps.str();
+            sa_res.push_back(cr);
+
+            std::cout << "[" << std::setw(3) << v << "] T0=" << std::setw(8)
+                      << std::fixed << std::setprecision(0) << cfg.initial_temp
+                      << " cool=" << std::setprecision(4) << cfg.cooling_rate
+                      << " ipt=" << std::setw(2) << cfg.iter_per_temp
+                      << "  avg=" << std::setprecision(0) << st.avg
+                      << "  std=" << st.std << "\n";
+            std::cout.flush();
+        }
+    }
+
+    // ── 3. VNS ────────────────────────────────────────────────────────────────
+    {
+        const std::string csv_path = (bdir / "vns_budget.csv").string();
+        { std::ofstream f(csv_path);
+          f << "config_id,iter,shake,ls_actual,eval_budget_approx,runs,best,avg,std,time_ms\n"; }
+
+        std::uniform_int_distribution<int>  iter_d(1, 1000);
+        std::uniform_int_distribution<int> shake_d(1,   15);
+
+        std::cout << "\n=== VNS: " << CONFIGS << " configs x " << RUNS
+                  << " runs (budget=" << BUDGET << " evals each) ===\n";
+
+        for (int v = 1; v <= CONFIGS; ++v) {
+            VNSConfig cfg;
+            cfg.max_iterations                  = iter_d(prng);
+            cfg.shake_attempts_per_neighborhood = shake_d(prng);
+            cfg.local_search_attempts = std::max(1,
+                BUDGET / cfg.max_iterations - cfg.shake_attempts_per_neighborhood);
+            int approx_evals = cfg.max_iterations *
+                (cfg.shake_attempts_per_neighborhood + cfg.local_search_attempts);
+
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> raw;
+            VNS_RUNS_DIR = (bdir / "vns_runs").string();
+            for (int r = 0; r < RUNS; ++r) {
+                std::ofstream null_csv;
+                raw.push_back(variable_neighborhood_search(problem, null_csv, cfg, rng).objective_value);
+            }
+            long long ms = elapsed_ms(t0);
+            Stats st = mk_stats(raw);
+
+            { std::ofstream f(csv_path, std::ios::app);
+              f << v << ',' << cfg.max_iterations << ','
+                << cfg.shake_attempts_per_neighborhood << ',' << cfg.local_search_attempts << ','
+                << approx_evals << ',' << RUNS << ','
+                << st.best << ',' << std::fixed << std::setprecision(3) << st.avg << ',' << st.std << ','
+                << ms << '\n'; }
+
+            bd::ConfigResult cr; cr.id=v; cr.best=st.best; cr.avg=st.avg; cr.std_dev=st.std;
+            cr.time_ms=ms; cr.raw=raw;
+            std::ostringstream ps; ps<<"iter="<<cfg.max_iterations
+                <<" shake="<<cfg.shake_attempts_per_neighborhood
+                <<" ls="<<cfg.local_search_attempts; cr.pstr=ps.str();
+            vns_res.push_back(cr);
+
+            std::cout << "[" << std::setw(3) << v << "] iter=" << std::setw(4) << cfg.max_iterations
+                      << " shake=" << std::setw(2) << cfg.shake_attempts_per_neighborhood
+                      << " ls=" << std::setw(6) << cfg.local_search_attempts
+                      << "  avg=" << std::fixed << std::setprecision(0) << st.avg
+                      << "  std=" << st.std << "\n";
+            std::cout.flush();
+        }
+    }
+
+    // ── 4. GRASP ──────────────────────────────────────────────────────────────
+    {
+        const std::string csv_path = (bdir / "grasp_budget.csv").string();
+        { std::ofstream f(csv_path);
+          f << "config_id,iter,rcl,ls_actual,eval_budget_approx,runs,best,avg,std,time_ms\n"; }
+
+        std::uniform_int_distribution<int>  iter_d(1, 1000);
+        std::uniform_int_distribution<int>   rcl_d(1,    6);
+
+        std::cout << "\n=== GRASP: " << CONFIGS << " configs x " << RUNS
+                  << " runs (budget=" << BUDGET << " evals each) ===\n";
+
+        for (int v = 1; v <= CONFIGS; ++v) {
+            GRASPConfig cfg;
+            cfg.iterations            = iter_d(prng);
+            cfg.rcl_size              = rcl_d(prng);
+            cfg.local_search_attempts = std::max(1, BUDGET / cfg.iterations - 1);
+            int approx_evals = cfg.iterations * (1 + cfg.local_search_attempts);
+
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> raw;
+            GRASP_RUNS_DIR = (bdir / "grasp_runs").string();
+            for (int r = 0; r < RUNS; ++r) {
+                std::ofstream null_csv;
+                raw.push_back(grasp_algorithm(problem, null_csv, cfg, rng).objective_value);
+            }
+            long long ms = elapsed_ms(t0);
+            Stats st = mk_stats(raw);
+
+            { std::ofstream f(csv_path, std::ios::app);
+              f << v << ',' << cfg.iterations << ',' << cfg.rcl_size << ','
+                << cfg.local_search_attempts << ',' << approx_evals << ',' << RUNS << ','
+                << st.best << ',' << std::fixed << std::setprecision(3) << st.avg << ',' << st.std << ','
+                << ms << '\n'; }
+
+            bd::ConfigResult cr; cr.id=v; cr.best=st.best; cr.avg=st.avg; cr.std_dev=st.std;
+            cr.time_ms=ms; cr.raw=raw;
+            std::ostringstream ps; ps<<"iter="<<cfg.iterations
+                <<" rcl="<<cfg.rcl_size
+                <<" ls="<<cfg.local_search_attempts; cr.pstr=ps.str();
+            grasp_res.push_back(cr);
+
+            std::cout << "[" << std::setw(3) << v << "] iter=" << std::setw(4) << cfg.iterations
+                      << " rcl=" << cfg.rcl_size
+                      << " ls=" << std::setw(6) << cfg.local_search_attempts
+                      << "  avg=" << std::fixed << std::setprecision(0) << st.avg
+                      << "  std=" << st.std << "\n";
+            std::cout.flush();
+        }
+    }
+
+    // ── SVG scatter plots ─────────────────────────────────────────────────────
+    std::cout << "\nGenerating scatter plots...\n";
+
+    // helper: extract {param, avg} pairs from ConfigResult vector using a lambda
+    auto make_pts = [](const std::vector<bd::ConfigResult>& rs,
+                       std::function<double(int)> x_fn)
+        -> std::pair<std::vector<std::pair<double,double>>, std::vector<double>>
+    {
+        std::vector<std::pair<double,double>> pts;
+        std::vector<double> stds;
+        for (int i=0;i<(int)rs.size();++i){ pts.push_back({x_fn(i), rs[i].avg}); stds.push_back(rs[i].std_dev); }
+        return {pts, stds};
+    };
+
+    // EA plots: pop vs avg, pm vs avg, tour vs avg
+    {
+        // Re-read CSV to recover params (we lost them — read back)
+        // Alternative: store params in ConfigResult. Let's read the CSV.
+        std::ifstream f((bdir/"ea_budget.csv").string());
+        std::string hdr; std::getline(f,hdr);
+        struct EARow{ int pop,gen,tour; double pm,px,bias,avg,std_dev; };
+        std::vector<EARow> rows;
+        std::string line;
+        while(std::getline(f,line)){
+            std::istringstream ss(line); std::string tok;
+            EARow r{};
+            auto nxt=[&]{ std::getline(ss,tok,','); };
+            nxt(); // id
+            nxt(); r.pop=std::stoi(tok);
+            nxt(); r.gen=std::stoi(tok);
+            nxt(); r.tour=std::stoi(tok);
+            nxt(); r.pm=std::stod(tok);
+            nxt(); r.px=std::stod(tok);
+            nxt(); r.bias=std::stod(tok);
+            nxt(); // evals
+            nxt(); // runs
+            nxt(); // best
+            nxt(); r.avg=std::stod(tok);
+            nxt(); r.std_dev=std::stod(tok);
+            rows.push_back(r);
+        }
+        auto mk=[&](auto fn, const std::string& xl) -> std::pair<std::vector<std::pair<double,double>>,std::vector<double>> {
+            std::vector<std::pair<double,double>> pts; std::vector<double> sd;
+            for(auto& r:rows){ pts.push_back({fn(r),r.avg}); sd.push_back(r.std_dev); }
+            return {pts,sd};
+        };
+        { auto [p,s]=mk([](auto& r){return (double)r.pop;},"pop_size");
+          bd::scatter_svg(pdir/"ea_pop_vs_avg.svg","EA: pop_size vs avg (budget=100k)","pop_size",p,s); }
+        { auto [p,s]=mk([](auto& r){return r.pm;},"mutation_pro");
+          bd::scatter_svg(pdir/"ea_pm_vs_avg.svg","EA: mutation_rate vs avg (budget=100k)","mutation_pro",p,s); }
+        { auto [p,s]=mk([](auto& r){return (double)r.tour;},"tour_size");
+          bd::scatter_svg(pdir/"ea_tour_vs_avg.svg","EA: tour_size vs avg (budget=100k)","tour_size",p,s); }
+        { auto [p,s]=mk([](auto& r){return r.px;},"cross_pro");
+          bd::scatter_svg(pdir/"ea_px_vs_avg.svg","EA: cross_pro vs avg (budget=100k)","cross_pro",p,s); }
+        std::cout << "  EA scatter plots done\n";
+    }
+
+    // SA plots: cool vs avg, T0 vs avg, ipt vs avg
+    {
+        std::ifstream f((bdir/"sa_budget.csv").string());
+        std::string hdr; std::getline(f,hdr);
+        struct SARow{ double T0,cool,minT,avg,std_dev; int ipt; };
+        std::vector<SARow> rows;
+        std::string line;
+        while(std::getline(f,line)){
+            std::istringstream ss(line); std::string tok;
+            SARow r{};
+            auto nxt=[&]{ std::getline(ss,tok,','); };
+            nxt(); // id
+            nxt(); r.T0=std::stod(tok);
+            nxt(); r.cool=std::stod(tok);
+            nxt(); r.minT=std::stod(tok);
+            nxt(); r.ipt=std::stoi(tok);
+            nxt(); nxt(); nxt(); // evals, runs, best
+            nxt(); r.avg=std::stod(tok);
+            nxt(); r.std_dev=std::stod(tok);
+            rows.push_back(r);
+        }
+        auto mk=[&](auto fn, const std::string& xl) -> std::pair<std::vector<std::pair<double,double>>,std::vector<double>> {
+            std::vector<std::pair<double,double>> pts; std::vector<double> sd;
+            for(auto& r:rows){ pts.push_back({fn(r),r.avg}); sd.push_back(r.std_dev); }
+            return {pts,sd};
+        };
+        { auto [p,s]=mk([](auto& r){return r.cool;},"cooling_rate");
+          bd::scatter_svg(pdir/"sa_cool_vs_avg.svg","SA: cooling_rate vs avg (budget=100k)","cooling_rate",p,s); }
+        { auto [p,s]=mk([](auto& r){return r.T0;},"initial_temp");
+          bd::scatter_svg(pdir/"sa_T0_vs_avg.svg","SA: initial_temp vs avg (budget=100k)","initial_temp",p,s); }
+        { auto [p,s]=mk([](auto& r){return (double)r.ipt;},"iter_per_temp");
+          bd::scatter_svg(pdir/"sa_ipt_vs_avg.svg","SA: iter_per_temp vs avg (budget=100k)","iter_per_temp",p,s); }
+        std::cout << "  SA scatter plots done\n";
+    }
+
+    // VNS plots: iter vs avg, ls vs avg, shake vs avg
+    {
+        std::ifstream f((bdir/"vns_budget.csv").string());
+        std::string hdr; std::getline(f,hdr);
+        struct VRow{ int iter,shake,ls; double avg,std_dev; };
+        std::vector<VRow> rows;
+        std::string line;
+        while(std::getline(f,line)){
+            std::istringstream ss(line); std::string tok;
+            VRow r{};
+            auto nxt=[&]{ std::getline(ss,tok,','); };
+            nxt();
+            nxt(); r.iter=std::stoi(tok);
+            nxt(); r.shake=std::stoi(tok);
+            nxt(); r.ls=std::stoi(tok);
+            nxt(); nxt(); nxt(); nxt(); // approx,runs,best
+            nxt(); r.avg=std::stod(tok);
+            nxt(); r.std_dev=std::stod(tok);
+            rows.push_back(r);
+        }
+        auto mk=[&](auto fn, const std::string& xl) -> std::pair<std::vector<std::pair<double,double>>,std::vector<double>> {
+            std::vector<std::pair<double,double>> pts; std::vector<double> sd;
+            for(auto& r:rows){ pts.push_back({fn(r),r.avg}); sd.push_back(r.std_dev); }
+            return {pts,sd};
+        };
+        { auto [p,s]=mk([](auto& r){return (double)r.iter;},"max_iterations");
+          bd::scatter_svg(pdir/"vns_iter_vs_avg.svg","VNS: max_iterations vs avg (budget=100k)","max_iterations",p,s); }
+        { auto [p,s]=mk([](auto& r){return (double)r.ls;},"ls_attempts");
+          bd::scatter_svg(pdir/"vns_ls_vs_avg.svg","VNS: ls_attempts vs avg (budget=100k)","ls_attempts",p,s); }
+        { auto [p,s]=mk([](auto& r){return (double)r.shake;},"shake_attempts");
+          bd::scatter_svg(pdir/"vns_shake_vs_avg.svg","VNS: shake_attempts vs avg (budget=100k)","shake_attempts",p,s); }
+        std::cout << "  VNS scatter plots done\n";
+    }
+
+    // GRASP plots: iter vs avg, rcl vs avg, ls vs avg
+    {
+        std::ifstream f((bdir/"grasp_budget.csv").string());
+        std::string hdr; std::getline(f,hdr);
+        struct GRow{ int iter,rcl,ls; double avg,std_dev; };
+        std::vector<GRow> rows;
+        std::string line;
+        while(std::getline(f,line)){
+            std::istringstream ss(line); std::string tok;
+            GRow r{};
+            auto nxt=[&]{ std::getline(ss,tok,','); };
+            nxt();
+            nxt(); r.iter=std::stoi(tok);
+            nxt(); r.rcl=std::stoi(tok);
+            nxt(); r.ls=std::stoi(tok);
+            nxt(); nxt(); nxt(); nxt();
+            nxt(); r.avg=std::stod(tok);
+            nxt(); r.std_dev=std::stod(tok);
+            rows.push_back(r);
+        }
+        auto mk=[&](auto fn, const std::string& xl) -> std::pair<std::vector<std::pair<double,double>>,std::vector<double>> {
+            std::vector<std::pair<double,double>> pts; std::vector<double> sd;
+            for(auto& r:rows){ pts.push_back({fn(r),r.avg}); sd.push_back(r.std_dev); }
+            return {pts,sd};
+        };
+        { auto [p,s]=mk([](auto& r){return (double)r.iter;},"iterations");
+          bd::scatter_svg(pdir/"grasp_iter_vs_avg.svg","GRASP: iterations vs avg (budget=100k)","iterations",p,s); }
+        { auto [p,s]=mk([](auto& r){return (double)r.rcl;},"rcl_size");
+          bd::scatter_svg(pdir/"grasp_rcl_vs_avg.svg","GRASP: rcl_size vs avg (budget=100k)","rcl_size",p,s); }
+        { auto [p,s]=mk([](auto& r){return (double)r.ls;},"ls_attempts");
+          bd::scatter_svg(pdir/"grasp_ls_vs_avg.svg","GRASP: ls_attempts vs avg (budget=100k)","ls_attempts",p,s); }
+        std::cout << "  GRASP scatter plots done\n";
+    }
+
+    // ── Generate Markdown report ──────────────────────────────────────────────
+    std::cout << "\nWriting report...\n";
+
+    // helpers
+    auto best_cfg = [](const std::vector<bd::ConfigResult>& rs) -> const bd::ConfigResult& {
+        return *std::min_element(rs.begin(), rs.end(),
+            [](const bd::ConfigResult& a, const bd::ConfigResult& b){ return a.avg < b.avg; });
+    };
+    auto worst_cfg = [](const std::vector<bd::ConfigResult>& rs) -> const bd::ConfigResult& {
+        return *std::max_element(rs.begin(), rs.end(),
+            [](const bd::ConfigResult& a, const bd::ConfigResult& b){ return a.avg < b.avg; });
+    };
+    auto f0=[](double v){ std::ostringstream s; s<<std::fixed<<std::setprecision(0)<<v; return s.str(); };
+    auto f3=[](double v){ std::ostringstream s; s<<std::fixed<<std::setprecision(3)<<v; return s.str(); };
+
+    std::ofstream md(mdout);
+    md << "# Sprawozdanie — Eksperymenty z budzetem obliczeniowym\n\n";
+    md << "**Instancja:** cap41_ss.txt (41 magazynow, 50 klientow)\n\n";
+    md << "## Metodologia\n\n";
+    md << "Kazdy algorytm dostaje **rowny budzet = " << BUDGET << " ewaluacji** na jeden run.\n";
+    md << "Budzet jest egzekwowany inaczej dla kazdego algorytmu:\n\n";
+    md << "| Algorytm | Mechanizm budgetu |\n";
+    md << "|---|---|\n";
+    md << "| EA | `pop * (1 + gen) = " << BUDGET << "` — gen wyliczany z pop |\n";
+    md << "| SA | licznik ewaluacji; stop gdy `evals >= " << BUDGET << "` |\n";
+    md << "| VNS | `iter * (shake + ls) ≈ " << BUDGET << "` — ls wyliczane z iter+shake |\n";
+    md << "| GRASP | `iter * (1 + ls) ≈ " << BUDGET << "` — ls wyliczane z iter |\n\n";
+    md << "**Konfiguracje:** " << CONFIGS << " losowych (seed=" << PSEED << ")\n";
+    md << "**Runy na konfiguracj:** " << RUNS << " (bez usredniania — kazdy run osobno w CSV)\n\n";
+
+    md << "---\n\n## Wyniki EA (100 konfiguracji)\n\n";
+    md << "Zakres: pop ∈ [5,300], gen=budget/pop-1, tour ∈ [2,15], pm ∈ [0.1,0.95], px ∈ [0.5,0.95], bias ∈ [0.3,0.8]\n\n";
+    // top-10 best
+    std::vector<int> ea_idx(ea_res.size()); std::iota(ea_idx.begin(),ea_idx.end(),0);
+    std::sort(ea_idx.begin(),ea_idx.end(),[&](int a,int b){return ea_res[a].avg<ea_res[b].avg;});
+    md << "### Top-10 konfiguracji EA (po avg)\n\n";
+    md << "| Rank | Config | Parametry | best | avg | std |\n";
+    md << "|---|---|---|---|---|---|\n";
+    for(int i=0;i<std::min(10,(int)ea_idx.size());++i){
+        auto& r=ea_res[ea_idx[i]];
+        md << "| " << i+1 << " | #" << r.id << " | " << r.pstr
+           << " | " << f0(r.best) << " | " << f0(r.avg) << " | " << f0(r.std_dev) << " |\n";
+    }
+    md << "\n**Najgorsza konfiguracja:** #" << worst_cfg(ea_res).id
+       << " (" << worst_cfg(ea_res).pstr << ") avg=" << f0(worst_cfg(ea_res).avg)
+       << ", std=" << f0(worst_cfg(ea_res).std_dev) << "\n\n";
+    md << "Rozrzut (best avg vs worst avg): " << f0(worst_cfg(ea_res).avg - best_cfg(ea_res).avg) << "\n\n";
+
+    md << "---\n\n## Wyniki SA (100 konfiguracji)\n\n";
+    md << "Zakres: T0 ∈ [500,800k], cool ∈ [0.90,0.9999], min_T ∈ [0.1,20], ipt ∈ [1,20]\n\n";
+    std::vector<int> sa_idx(sa_res.size()); std::iota(sa_idx.begin(),sa_idx.end(),0);
+    std::sort(sa_idx.begin(),sa_idx.end(),[&](int a,int b){return sa_res[a].avg<sa_res[b].avg;});
+    md << "### Top-10 konfiguracji SA (po avg)\n\n";
+    md << "| Rank | Config | Parametry | best | avg | std |\n";
+    md << "|---|---|---|---|---|---|\n";
+    for(int i=0;i<std::min(10,(int)sa_idx.size());++i){
+        auto& r=sa_res[sa_idx[i]];
+        md << "| " << i+1 << " | #" << r.id << " | " << r.pstr
+           << " | " << f0(r.best) << " | " << f0(r.avg) << " | " << f0(r.std_dev) << " |\n";
+    }
+    md << "\n**Najgorsza konfiguracja:** #" << worst_cfg(sa_res).id
+       << " (" << worst_cfg(sa_res).pstr << ") avg=" << f0(worst_cfg(sa_res).avg)
+       << ", std=" << f0(worst_cfg(sa_res).std_dev) << "\n\n";
+    md << "Rozrzut: " << f0(worst_cfg(sa_res).avg - best_cfg(sa_res).avg) << "\n\n";
+
+    md << "---\n\n## Wyniki VNS (100 konfiguracji)\n\n";
+    md << "Zakres: iter ∈ [1,1000], shake ∈ [1,15]; ls = budget/iter - shake\n\n";
+    std::vector<int> vns_idx(vns_res.size()); std::iota(vns_idx.begin(),vns_idx.end(),0);
+    std::sort(vns_idx.begin(),vns_idx.end(),[&](int a,int b){return vns_res[a].avg<vns_res[b].avg;});
+    md << "### Top-10 konfiguracji VNS (po avg)\n\n";
+    md << "| Rank | Config | Parametry | best | avg | std |\n";
+    md << "|---|---|---|---|---|---|\n";
+    for(int i=0;i<std::min(10,(int)vns_idx.size());++i){
+        auto& r=vns_res[vns_idx[i]];
+        md << "| " << i+1 << " | #" << r.id << " | " << r.pstr
+           << " | " << f0(r.best) << " | " << f0(r.avg) << " | " << f0(r.std_dev) << " |\n";
+    }
+    md << "\n**Najgorsza konfiguracja:** #" << worst_cfg(vns_res).id
+       << " (" << worst_cfg(vns_res).pstr << ") avg=" << f0(worst_cfg(vns_res).avg)
+       << ", std=" << f0(worst_cfg(vns_res).std_dev) << "\n\n";
+    md << "Rozrzut: " << f0(worst_cfg(vns_res).avg - best_cfg(vns_res).avg) << "\n\n";
+
+    md << "---\n\n## Wyniki GRASP (100 konfiguracji)\n\n";
+    md << "Zakres: iter ∈ [1,1000], rcl ∈ [1,6]; ls = budget/iter - 1\n\n";
+    std::vector<int> gr_idx(grasp_res.size()); std::iota(gr_idx.begin(),gr_idx.end(),0);
+    std::sort(gr_idx.begin(),gr_idx.end(),[&](int a,int b){return grasp_res[a].avg<grasp_res[b].avg;});
+    md << "### Top-10 konfiguracji GRASP (po avg)\n\n";
+    md << "| Rank | Config | Parametry | best | avg | std |\n";
+    md << "|---|---|---|---|---|---|\n";
+    for(int i=0;i<std::min(10,(int)gr_idx.size());++i){
+        auto& r=grasp_res[gr_idx[i]];
+        md << "| " << i+1 << " | #" << r.id << " | " << r.pstr
+           << " | " << f0(r.best) << " | " << f0(r.avg) << " | " << f0(r.std_dev) << " |\n";
+    }
+    md << "\n**Najgorsza konfiguracja:** #" << worst_cfg(grasp_res).id
+       << " (" << worst_cfg(grasp_res).pstr << ") avg=" << f0(worst_cfg(grasp_res).avg)
+       << ", std=" << f0(worst_cfg(grasp_res).std_dev) << "\n\n";
+    md << "Rozrzut: " << f0(worst_cfg(grasp_res).avg - best_cfg(grasp_res).avg) << "\n\n";
+
+    // Global comparison
+    md << "---\n\n## Porownanie najlepszych konfiguracji (fair budget=100k)\n\n";
+    md << "| Algorytm | Najlepsza konfiguracja | best | avg | std | rozrzut 100 konfiguracji |\n";
+    md << "|---|---|---|---|---|---|\n";
+    struct Alg{ std::string name; const std::vector<bd::ConfigResult>* r; };
+    for(auto& [name,r] : std::vector<Alg>{{"EA",&ea_res},{"SA",&sa_res},{"VNS",&vns_res},{"GRASP",&grasp_res}}){
+        auto& bc=best_cfg(*r);
+        double spread=worst_cfg(*r).avg - bc.avg;
+        md<<"| **"<<name<<"** | #"<<bc.id<<" "<<bc.pstr
+          <<" | "<<f0(bc.best)<<" | "<<f0(bc.avg)<<" | "<<f0(bc.std_dev)
+          <<" | "<<f0(spread)<<" |\n";
+    }
+
+    md << "\n### Wnioski\n\n";
+    // find overall best
+    double glob_best = std::min({best_cfg(ea_res).avg, best_cfg(sa_res).avg,
+                                  best_cfg(vns_res).avg, best_cfg(grasp_res).avg});
+    auto rank_str = [&](const std::string& n, const std::vector<bd::ConfigResult>& r)->std::string{
+        return n + "=" + f0(best_cfg(r).avg); };
+    md << "Przy rownym budzecie 100k ewaluacji na cap41_ss:\n\n";
+    md << "- **" << (best_cfg(ea_res).avg==glob_best?"EA":
+                     best_cfg(sa_res).avg==glob_best?"SA":
+                     best_cfg(vns_res).avg==glob_best?"VNS":"GRASP")
+       << "** osiaga najnizsze avg wsrod najlepszych konfiguracji\n";
+    md << "- Rozrzut 100 konfiguracji mierzy wrazliwosc na parametry: duzy rozrzut = algorytm trudny w strojeniu\n";
+    md << "- SA z budzetem = twardy limit ewaluacji (niezaleznie od temperatury)\n";
+    md << "- EA: duze pop (mniej generacji) vs male pop (wiecej generacji) — trade-off widoczny na wykresie pop vs avg\n";
+    md << "- VNS/GRASP: malo iteracji z glebokim LS vs duzo iteracji z plytkim LS — trade-off na wykresach iter vs avg\n\n";
+
+    md << "---\n\n## Pliki wynikowe\n\n";
+    md << "```\n";
+    md << "data/budget/ea_budget.csv        -- 100 konfiguracji EA (100 runow kazdej)\n";
+    md << "data/budget/sa_budget.csv\n";
+    md << "data/budget/vns_budget.csv\n";
+    md << "data/budget/grasp_budget.csv\n";
+    md << "plots/budget/ea_pop_vs_avg.svg   -- scatter: pop_size vs avg\n";
+    md << "plots/budget/ea_pm_vs_avg.svg    -- scatter: mutation_rate vs avg\n";
+    md << "plots/budget/ea_tour_vs_avg.svg  -- scatter: tour_size vs avg\n";
+    md << "plots/budget/ea_px_vs_avg.svg    -- scatter: cross_pro vs avg\n";
+    md << "plots/budget/sa_cool_vs_avg.svg  -- scatter: cooling_rate vs avg\n";
+    md << "plots/budget/sa_T0_vs_avg.svg    -- scatter: initial_temp vs avg\n";
+    md << "plots/budget/sa_ipt_vs_avg.svg   -- scatter: iter_per_temp vs avg\n";
+    md << "plots/budget/vns_iter_vs_avg.svg -- scatter: max_iter vs avg\n";
+    md << "plots/budget/vns_ls_vs_avg.svg   -- scatter: ls_attempts vs avg\n";
+    md << "plots/budget/vns_shake_vs_avg.svg\n";
+    md << "plots/budget/grasp_iter_vs_avg.svg\n";
+    md << "plots/budget/grasp_rcl_vs_avg.svg\n";
+    md << "plots/budget/grasp_ls_vs_avg.svg\n";
+    md << "SPRAWOZDANIE_BUDGET.md           -- ten plik\n";
+    md << "```\n";
+
+    md.close();
+
+    std::cout << "=== BUDGET EXPERIMENTS COMPLETE ===\n";
+    std::cout << "Data:    " << bdir.string() << "\n";
+    std::cout << "Plots:   " << pdir.string() << "\n";
+    std::cout << "Report:  " << mdout.string() << "\n";
 }
