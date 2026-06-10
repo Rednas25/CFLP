@@ -1,0 +1,454 @@
+
+=== EA: random search (100 configs x 3 runs) ===
+[  1/100] pop= 44 gen=488 tour=15 pm=0.76  avg=1576175  <-- best
+[  2/100] pop= 50 gen=135 tour= 3 pm=0.51  avg=1609955
+[  3/100] pop= 74 gen=408 tour= 2 pm=0.97  avg=1617275
+[  4/100] pop= 10 gen=150 tour=15 pm=0.66  avg=1705877
+[  5/100] pop= 49 gen= 62 tour= 6 pm=0.65  avg=1611722
+[  6/100] pop= 98 gen=251 tour= 5 pm=0.18  avg=1579434
+[  7/100] pop= 56 gen=591 tour=10 pm=0.14  avg=1593195
+[  8/100] pop= 50 gen= 85 tour= 2 pm=0.95  avg=1651304
+[  9/100] pop= 37 gen= 58 tour= 3 pm=0.72  avg=1653094
+[ 10/100] pop= 65 gen=322 tour=13 pm=0.26  avg=1587345
+[ 11/100] pop= 70 gen=466 tour= 6 pm=0.57  avg=1572116  <-- best
+[ 12/100] pop= 12 gen=584 tour=13 pm=0.50  avg=1618483
+[ 13/100] pop= 64 gen=450 tour=14 pm=0.18  avg=1598051
+[ 14/100] pop= 97 gen=229 tour=13 pm=0.77  avg=1574178
+[ 15/100] pop= 42 gen=581 tour= 5 pm=0.59  avg=1568660  <-- best
+[ 16/100] pop= 25 gen= 91 tour= 2 pm=0.48  avg=1667154
+[ 17/100] pop= 10 gen= 57 tour=13 pm=0.74  avg=1743615
+[ 18/100] pop= 65 gen= 90 tour=14 pm=0.69  avg=1591643
+[ 19/100] pop= 66 gen=297 tour= 6 pm=0.16  avg=1600779
+[ 20/100] pop= 70 gen=452 tour=10 pm=0.35  avg=1577683
+[ 21/100] pop= 20 gen=585 tour=11 pm=0.78  avg=1591819
+[ 22/100] pop= 33 gen=322 tour= 2 pm=0.74  avg=1586784
+[ 23/100] pop= 19 gen=161 tour= 2 pm=0.67  avg=1626453
+[ 24/100] pop= 73 gen=550 tour= 3 pm=0.64  avg=1573342
+[ 25/100] pop= 30 gen=569 tour= 3 pm=0.36  avg=1589164
+[ 26/100] pop= 66 gen=495 tour= 6 pm=0.19  avg=1570272
+[ 27/100] pop= 26 gen=279 tour=14 pm=0.59  avg=1605827
+[ 28/100] pop= 42 gen=225 tour=14 pm=0.34  avg=1617121
+[ 29/100] pop= 84 gen=244 tour=14 pm=0.11  avg=1613485
+[ 30/100] pop= 54 gen=172 tour=11 pm=0.34  avg=1591826
+[ 31/100] pop= 39 gen=170 tour= 9 pm=0.73  avg=1602026
+[ 32/100] pop= 33 gen=580 tour= 5 pm=0.73  avg=1579856
+[ 33/100] pop= 35 gen=599 tour= 2 pm=0.65  avg=1609474
+[ 34/100] pop= 13 gen=203 tour= 6 pm=0.67  avg=1667663
+[ 35/100] pop= 54 gen=296 tour=15 pm=0.32  avg=1603334
+[ 36/100] pop= 43 gen=180 tour= 5 pm=0.82  avg=1612112
+[ 37/100] pop= 67 gen=269 tour= 9 pm=0.18  avg=1591528
+[ 38/100] pop= 56 gen=152 tour=11 pm=0.87  avg=1604003
+[ 39/100] pop= 11 gen=441 tour= 9 pm=0.30  avg=1660272
+[ 40/100] pop= 95 gen=430 tour= 7 pm=0.57  avg=1564955  <-- best
+[ 41/100] pop= 41 gen=455 tour= 3 pm=0.93  avg=1583327
+[ 42/100] pop= 30 gen=413 tour= 4 pm=0.98  avg=1593661
+[ 43/100] pop= 32 gen=598 tour= 3 pm=0.91  avg=1578085
+[ 44/100] pop= 27 gen=236 tour= 5 pm=0.73  avg=1583072
+[ 45/100] pop= 90 gen=272 tour=12 pm=0.68  avg=1569077
+[ 46/100] pop= 81 gen=545 tour=11 pm=0.62  avg=1573745
+[ 47/100] pop= 70 gen=586 tour= 2 pm=0.24  avg=1574004
+[ 48/100] pop= 50 gen=409 tour=15 pm=0.26  avg=1586789
+[ 49/100] pop= 39 gen=148 tour=12 pm=0.68  avg=1573567
+[ 50/100] pop= 38 gen=363 tour= 9 pm=0.56  avg=1577359
+[ 51/100] pop= 32 gen=375 tour=15 pm=0.45  avg=1604367
+[ 52/100] pop= 49 gen=487 tour= 6 pm=0.68  avg=1572493
+[ 53/100] pop= 27 gen=176 tour=12 pm=0.35  avg=1665652
+[ 54/100] pop= 13 gen=147 tour=15 pm=0.52  avg=1689775
+[ 55/100] pop= 43 gen=461 tour= 2 pm=0.94  avg=1577929
+[ 56/100] pop= 62 gen=580 tour=15 pm=0.17  avg=1572658
+[ 57/100] pop= 87 gen=197 tour= 6 pm=0.25  avg=1574613
+[ 58/100] pop= 86 gen=433 tour=15 pm=0.16  avg=1576846
+[ 59/100] pop=100 gen=247 tour= 3 pm=0.57  avg=1572881
+[ 60/100] pop= 87 gen=434 tour= 3 pm=0.74  avg=1569793
+[ 61/100] pop= 83 gen=281 tour=13 pm=0.88  avg=1580698
+[ 62/100] pop= 10 gen=326 tour=10 pm=0.27  avg=1685967
+[ 63/100] pop= 82 gen= 77 tour=14 pm=0.40  avg=1597700
+[ 64/100] pop= 49 gen=368 tour=11 pm=0.40  avg=1598323
+[ 65/100] pop= 36 gen=512 tour=10 pm=0.13  avg=1636621
+[ 66/100] pop= 37 gen=248 tour= 9 pm=0.39  avg=1605682
+[ 67/100] pop= 29 gen=581 tour=10 pm=0.18  avg=1609278
+[ 68/100] pop= 47 gen=347 tour=11 pm=0.22  avg=1618174
+[ 69/100] pop= 56 gen=443 tour= 6 pm=0.82  avg=1570445
+[ 70/100] pop= 77 gen= 93 tour= 5 pm=0.27  avg=1618422
+[ 71/100] pop= 73 gen=429 tour= 7 pm=0.26  avg=1574209
+[ 72/100] pop= 31 gen=352 tour= 3 pm=0.26  avg=1592911
+[ 73/100] pop= 96 gen=334 tour=12 pm=0.60  avg=1566728
+[ 74/100] pop= 14 gen=186 tour= 9 pm=0.24  avg=1672557
+[ 75/100] pop= 20 gen=100 tour= 2 pm=0.14  avg=1723592
+[ 76/100] pop= 25 gen=311 tour= 2 pm=0.79  avg=1599179
+[ 77/100] pop= 25 gen=306 tour= 8 pm=0.46  avg=1593424
+[ 78/100] pop= 90 gen= 74 tour= 5 pm=0.11  avg=1592721
+[ 79/100] pop= 87 gen=347 tour=11 pm=0.25  avg=1598916
+[ 80/100] pop= 95 gen= 64 tour=14 pm=0.67  avg=1592067
+[ 81/100] pop= 45 gen=365 tour=11 pm=0.51  avg=1589119
+[ 82/100] pop= 66 gen=262 tour=13 pm=0.69  avg=1571237
+[ 83/100] pop= 16 gen=168 tour= 3 pm=0.12  avg=1811530
+[ 84/100] pop= 40 gen= 89 tour=11 pm=0.45  avg=1588284
+[ 85/100] pop= 84 gen=193 tour= 5 pm=0.21  avg=1581995
+[ 86/100] pop= 95 gen=533 tour= 2 pm=0.48  avg=1570389
+[ 87/100] pop= 26 gen=283 tour=12 pm=0.83  avg=1599518
+[ 88/100] pop= 21 gen=254 tour= 5 pm=0.62  avg=1606147
+[ 89/100] pop= 88 gen=181 tour= 8 pm=0.78  avg=1592470
+[ 90/100] pop= 44 gen=547 tour= 9 pm=0.55  avg=1579403
+[ 91/100] pop= 91 gen=105 tour= 7 pm=0.11  avg=1614108
+[ 92/100] pop= 42 gen=225 tour=15 pm=0.71  avg=1592183
+[ 93/100] pop= 67 gen= 95 tour= 8 pm=0.36  avg=1585647
+[ 94/100] pop= 29 gen=464 tour=15 pm=0.80  avg=1567540
+[ 95/100] pop= 54 gen=586 tour= 2 pm=0.59  avg=1572705
+[ 96/100] pop= 59 gen=243 tour=11 pm=0.97  avg=1570815
+[ 97/100] pop= 66 gen=527 tour= 3 pm=0.18  avg=1605961
+[ 98/100] pop= 46 gen=502 tour=14 pm=0.23  avg=1594258
+[ 99/100] pop= 99 gen=370 tour= 7 pm=0.43  avg=1572921
+[100/100] pop= 92 gen=593 tour=10 pm=0.42  avg=1570045
+
+  Best EA: pop=95 gen=430 tour=7 pm=0.566 px=0.919 bias=0.638  (avg=1564955)
+  Final: 30 runs x 3 instances...
+    [cap41_ss] best=1559754  avg=1569399.7  std=6808.0
+    [cap81_ss] best=1184367.2  avg=1193273.5  std=5099.2
+    [cap111_ss] best=1173871.3  avg=1189152.8  std=7923.8
+
+=== SA: random search (100 configs x 3 runs) ===
+[  1/100] T0= 116506 cool=0.9934 ipt=10  avg=1565201  <-- best
+[  2/100] T0=  37803 cool=0.9894 ipt=5  avg=1593017
+[  3/100] T0= 173585 cool=0.9941 ipt=2  avg=1608107
+[  4/100] T0= 196517 cool=0.9942 ipt=3  avg=1605100
+[  5/100] T0= 123066 cool=0.9891 ipt=9  avg=1589569
+[  6/100] T0=  70961 cool=0.9983 ipt=10  avg=1563569  <-- best
+[  7/100] T0= 169021 cool=0.9861 ipt=6  avg=1597338
+[  8/100] T0= 297925 cool=0.9814 ipt=7  avg=1603454
+[  9/100] T0=  27253 cool=0.9832 ipt=7  avg=1576567
+[ 10/100] T0= 139090 cool=0.9919 ipt=4  avg=1576873
+[ 11/100] T0= 222445 cool=0.9974 ipt=10  avg=1562831  <-- best
+[ 12/100] T0= 267628 cool=0.9887 ipt=4  avg=1597471
+[ 13/100] T0=  55056 cool=0.9923 ipt=4  avg=1598146
+[ 14/100] T0= 177179 cool=0.9815 ipt=3  avg=1633692
+[ 15/100] T0= 138706 cool=0.9806 ipt=4  avg=1625075
+[ 16/100] T0= 245070 cool=0.9930 ipt=2  avg=1626698
+[ 17/100] T0=  27479 cool=0.9979 ipt=8  avg=1562314  <-- best
+[ 18/100] T0= 185957 cool=0.9879 ipt=9  avg=1637580
+[ 19/100] T0= 167718 cool=0.9831 ipt=4  avg=1649235
+[ 20/100] T0= 244113 cool=0.9988 ipt=4  avg=1569492
+[ 21/100] T0= 226126 cool=0.9875 ipt=9  avg=1592515
+[ 22/100] T0= 252307 cool=0.9889 ipt=2  avg=1706229
+[ 23/100] T0=   9033 cool=0.9814 ipt=9  avg=1612571
+[ 24/100] T0= 299917 cool=0.9989 ipt=6  avg=1564932
+[ 25/100] T0= 219206 cool=0.9944 ipt=3  avg=1576583
+[ 26/100] T0= 137911 cool=0.9825 ipt=3  avg=1649187
+[ 27/100] T0=  66132 cool=0.9967 ipt=7  avg=1570372
+[ 28/100] T0= 110658 cool=0.9822 ipt=5  avg=1619326
+[ 29/100] T0= 145482 cool=0.9958 ipt=9  avg=1571684
+[ 30/100] T0= 167813 cool=0.9907 ipt=8  avg=1575755
+[ 31/100] T0= 179037 cool=0.9891 ipt=8  avg=1603272
+[ 32/100] T0= 187991 cool=0.9934 ipt=10  avg=1568548
+[ 33/100] T0= 187093 cool=0.9986 ipt=6  avg=1566208
+[ 34/100] T0= 120712 cool=0.9883 ipt=8  avg=1572174
+[ 35/100] T0= 166497 cool=0.9886 ipt=4  avg=1607500
+[ 36/100] T0= 188516 cool=0.9964 ipt=8  avg=1576972
+[ 37/100] T0= 140507 cool=0.9960 ipt=3  avg=1601467
+[ 38/100] T0= 140445 cool=0.9986 ipt=4  avg=1565715
+[ 39/100] T0=  66694 cool=0.9910 ipt=1  avg=1668603
+[ 40/100] T0=  43020 cool=0.9824 ipt=5  avg=1636232
+[ 41/100] T0= 210812 cool=0.9834 ipt=4  avg=1718352
+[ 42/100] T0= 269553 cool=0.9890 ipt=10  avg=1598897
+[ 43/100] T0= 182571 cool=0.9843 ipt=2  avg=1684881
+[ 44/100] T0=  87184 cool=0.9834 ipt=6  avg=1580565
+[ 45/100] T0= 162655 cool=0.9868 ipt=4  avg=1621141
+[ 46/100] T0= 153508 cool=0.9931 ipt=1  avg=1699209
+[ 47/100] T0= 146938 cool=0.9931 ipt=9  avg=1564057
+[ 48/100] T0= 276657 cool=0.9812 ipt=9  avg=1601840
+[ 49/100] T0=  29933 cool=0.9913 ipt=3  avg=1622554
+[ 50/100] T0= 114289 cool=0.9892 ipt=8  avg=1570945
+[ 51/100] T0= 161723 cool=0.9937 ipt=1  avg=1716439
+[ 52/100] T0=  79469 cool=0.9936 ipt=9  avg=1567314
+[ 53/100] T0= 226137 cool=0.9806 ipt=5  avg=1618819
+[ 54/100] T0= 162122 cool=0.9846 ipt=8  avg=1603594
+[ 55/100] T0=  58774 cool=0.9907 ipt=3  avg=1658447
+[ 56/100] T0= 101612 cool=0.9823 ipt=4  avg=1614182
+[ 57/100] T0= 144821 cool=0.9867 ipt=5  avg=1605375
+[ 58/100] T0=  30641 cool=0.9902 ipt=6  avg=1581197
+[ 59/100] T0= 178028 cool=0.9907 ipt=3  avg=1630118
+[ 60/100] T0= 112109 cool=0.9923 ipt=3  avg=1616045
+[ 61/100] T0= 151983 cool=0.9863 ipt=3  avg=1646625
+[ 62/100] T0=  35026 cool=0.9829 ipt=5  avg=1639660
+[ 63/100] T0= 255991 cool=0.9817 ipt=2  avg=1725433
+[ 64/100] T0= 269546 cool=0.9815 ipt=1  avg=1876765
+[ 65/100] T0= 210604 cool=0.9989 ipt=4  avg=1562086  <-- best
+[ 66/100] T0= 290994 cool=0.9964 ipt=10  avg=1566579
+[ 67/100] T0= 149771 cool=0.9937 ipt=10  avg=1569734
+[ 68/100] T0= 169245 cool=0.9909 ipt=9  avg=1578778
+[ 69/100] T0=  65498 cool=0.9984 ipt=5  avg=1567464
+[ 70/100] T0= 154745 cool=0.9846 ipt=8  avg=1603252
+[ 71/100] T0= 231495 cool=0.9817 ipt=2  avg=1633108
+[ 72/100] T0= 146936 cool=0.9901 ipt=4  avg=1602322
+[ 73/100] T0= 139009 cool=0.9904 ipt=10  avg=1568664
+[ 74/100] T0= 100094 cool=0.9954 ipt=2  avg=1612824
+[ 75/100] T0=   5800 cool=0.9822 ipt=5  avg=1628625
+[ 76/100] T0= 126493 cool=0.9866 ipt=9  avg=1603843
+[ 77/100] T0= 225062 cool=0.9878 ipt=8  avg=1585717
+[ 78/100] T0= 281810 cool=0.9834 ipt=10  avg=1568583
+[ 79/100] T0= 217871 cool=0.9809 ipt=2  avg=1730919
+[ 80/100] T0= 239604 cool=0.9838 ipt=9  avg=1589810
+[ 81/100] T0=  59989 cool=0.9845 ipt=6  avg=1615467
+[ 82/100] T0= 110855 cool=0.9967 ipt=7  avg=1568658
+[ 83/100] T0= 138325 cool=0.9936 ipt=5  avg=1564881
+[ 84/100] T0=  93906 cool=0.9942 ipt=6  avg=1581299
+[ 85/100] T0= 109832 cool=0.9874 ipt=6  avg=1584861
+[ 86/100] T0= 272409 cool=0.9919 ipt=5  avg=1600864
+[ 87/100] T0= 103181 cool=0.9939 ipt=2  avg=1625752
+[ 88/100] T0= 239237 cool=0.9918 ipt=8  avg=1572967
+[ 89/100] T0= 174080 cool=0.9990 ipt=4  avg=1563146
+[ 90/100] T0=  78304 cool=0.9941 ipt=3  avg=1597837
+[ 91/100] T0= 215649 cool=0.9894 ipt=4  avg=1618271
+[ 92/100] T0= 247271 cool=0.9821 ipt=5  avg=1659948
+[ 93/100] T0= 183168 cool=0.9895 ipt=2  avg=1613322
+[ 94/100] T0=  72629 cool=0.9937 ipt=1  avg=1784452
+[ 95/100] T0= 181541 cool=0.9907 ipt=3  avg=1619118
+[ 96/100] T0= 106980 cool=0.9835 ipt=4  avg=1608943
+[ 97/100] T0=  72069 cool=0.9880 ipt=10  avg=1579694
+[ 98/100] T0=  50239 cool=0.9911 ipt=2  avg=1671688
+[ 99/100] T0=  80525 cool=0.9938 ipt=10  avg=1569555
+[100/100] T0= 171714 cool=0.9932 ipt=1  avg=1703232
+
+  Best SA: T0=210604 cool=0.99895 min=9.01780 ipt=4  (avg=1562086)
+  Final: 30 runs x 3 instances...
+    [cap41_ss] best=1559754  avg=1566278.3  std=6668.6
+    [cap81_ss] best=1180743.5  avg=1187746.9  std=3439.4
+    [cap111_ss] best=1167029.1  avg=1177576.4  std=6485.2
+
+=== VNS: random search (100 configs x 3 runs) ===
+[  1/100] iter=145 shake=10 ls= 39  avg=1611976  <-- best
+[  2/100] iter=157 shake= 9 ls= 81  avg=1574306  <-- best
+[  3/100] iter=125 shake= 2 ls= 91  avg=1579592
+[  4/100] iter= 24 shake=12 ls= 29  avg=1654241
+[  5/100] iter=188 shake=13 ls=186  avg=1571266  <-- best
+[  6/100] iter=183 shake= 7 ls= 33  avg=1593672
+[  7/100] iter= 31 shake= 4 ls=198  avg=1577096
+[  8/100] iter= 41 shake=13 ls= 45  avg=1629481
+[  9/100] iter= 33 shake=13 ls=185  avg=1579493
+[ 10/100] iter= 73 shake=14 ls= 69  avg=1609997
+[ 11/100] iter=109 shake= 4 ls=122  avg=1580626
+[ 12/100] iter=126 shake= 6 ls= 82  avg=1606024
+[ 13/100] iter= 20 shake=12 ls= 74  avg=1637787
+[ 14/100] iter= 49 shake=13 ls=160  avg=1583257
+[ 15/100] iter= 10 shake=10 ls= 73  avg=1688590
+[ 16/100] iter= 31 shake= 6 ls= 89  avg=1616602
+[ 17/100] iter=112 shake=13 ls=185  avg=1574732
+[ 18/100] iter=186 shake= 6 ls= 98  avg=1603004
+[ 19/100] iter= 76 shake= 8 ls=150  avg=1581441
+[ 20/100] iter=185 shake= 7 ls=122  avg=1569330  <-- best
+[ 21/100] iter= 52 shake= 1 ls= 96  avg=1587346
+[ 22/100] iter=184 shake= 3 ls= 57  avg=1596033
+[ 23/100] iter= 43 shake= 9 ls=105  avg=1621825
+[ 24/100] iter= 41 shake= 7 ls= 16  avg=1706593
+[ 25/100] iter=184 shake= 5 ls= 79  avg=1576535
+[ 26/100] iter=159 shake= 9 ls= 63  avg=1584084
+[ 27/100] iter=130 shake= 4 ls= 12  avg=1618946
+[ 28/100] iter= 50 shake=10 ls=108  avg=1576775
+[ 29/100] iter= 44 shake=15 ls=193  avg=1587853
+[ 30/100] iter= 97 shake= 3 ls=116  avg=1570340
+[ 31/100] iter= 89 shake=13 ls= 26  avg=1636626
+[ 32/100] iter=112 shake=15 ls= 45  avg=1596776
+[ 33/100] iter=105 shake= 5 ls=123  avg=1568501  <-- best
+[ 34/100] iter= 69 shake= 2 ls= 85  avg=1579761
+[ 35/100] iter=153 shake= 7 ls= 50  avg=1578224
+[ 36/100] iter=162 shake=14 ls= 76  avg=1586723
+[ 37/100] iter= 49 shake= 8 ls= 46  avg=1635260
+[ 38/100] iter=129 shake= 1 ls= 82  avg=1575521
+[ 39/100] iter=100 shake=13 ls=117  avg=1572322
+[ 40/100] iter=122 shake= 1 ls= 66  avg=1598052
+[ 41/100] iter=158 shake=11 ls= 96  avg=1567944  <-- best
+[ 42/100] iter=110 shake= 8 ls=112  avg=1569592
+[ 43/100] iter= 94 shake= 8 ls= 86  avg=1575947
+[ 44/100] iter=104 shake= 9 ls=156  avg=1577603
+[ 45/100] iter= 39 shake= 2 ls= 44  avg=1614278
+[ 46/100] iter= 73 shake=13 ls= 24  avg=1614671
+[ 47/100] iter=190 shake=12 ls= 81  avg=1574210
+[ 48/100] iter= 62 shake= 5 ls=181  avg=1579535
+[ 49/100] iter=133 shake= 8 ls= 88  avg=1584139
+[ 50/100] iter=162 shake= 1 ls=196  avg=1567898  <-- best
+[ 51/100] iter= 39 shake=13 ls=146  avg=1598427
+[ 52/100] iter=175 shake=10 ls= 87  avg=1581760
+[ 53/100] iter= 15 shake= 9 ls= 52  avg=1626005
+[ 54/100] iter= 58 shake= 4 ls= 47  avg=1590239
+[ 55/100] iter=138 shake= 8 ls= 13  avg=1604182
+[ 56/100] iter=123 shake= 2 ls= 74  avg=1574942
+[ 57/100] iter=162 shake= 9 ls= 44  avg=1587934
+[ 58/100] iter=179 shake=10 ls=116  avg=1574057
+[ 59/100] iter= 55 shake=11 ls= 28  avg=1618608
+[ 60/100] iter=163 shake= 4 ls=198  avg=1569169
+[ 61/100] iter=147 shake=10 ls=173  avg=1591080
+[ 62/100] iter=164 shake=13 ls=193  avg=1570713
+[ 63/100] iter= 85 shake=15 ls=137  avg=1583712
+[ 64/100] iter= 36 shake= 4 ls= 87  avg=1594228
+[ 65/100] iter= 65 shake= 5 ls=181  avg=1567945
+[ 66/100] iter= 26 shake= 1 ls=130  avg=1593356
+[ 67/100] iter= 26 shake=12 ls= 49  avg=1623312
+[ 68/100] iter=171 shake= 1 ls= 33  avg=1594134
+[ 69/100] iter= 44 shake=14 ls=121  avg=1612323
+[ 70/100] iter=132 shake= 7 ls=144  avg=1578025
+[ 71/100] iter=180 shake=14 ls=166  avg=1566158  <-- best
+[ 72/100] iter=129 shake= 6 ls= 74  avg=1581902
+[ 73/100] iter= 59 shake=13 ls= 82  avg=1607278
+[ 74/100] iter= 79 shake= 9 ls= 16  avg=1641551
+[ 75/100] iter= 61 shake=13 ls=129  avg=1582113
+[ 76/100] iter= 75 shake= 7 ls=157  avg=1567833
+[ 77/100] iter=115 shake= 6 ls= 93  avg=1583516
+[ 78/100] iter=174 shake= 5 ls= 51  avg=1591826
+[ 79/100] iter=191 shake=15 ls=155  avg=1571772
+[ 80/100] iter=158 shake= 3 ls= 31  avg=1597418
+[ 81/100] iter=175 shake= 9 ls=103  avg=1571508
+[ 82/100] iter=198 shake=14 ls= 99  avg=1573679
+[ 83/100] iter=162 shake= 3 ls= 91  avg=1577713
+[ 84/100] iter=102 shake= 1 ls=107  avg=1586215
+[ 85/100] iter= 61 shake=12 ls=113  avg=1593702
+[ 86/100] iter=143 shake=10 ls= 86  avg=1589955
+[ 87/100] iter= 59 shake= 4 ls= 36  avg=1620421
+[ 88/100] iter=133 shake=13 ls= 90  avg=1577691
+[ 89/100] iter=198 shake= 2 ls=110  avg=1571625
+[ 90/100] iter=182 shake= 3 ls=142  avg=1572216
+[ 91/100] iter= 62 shake=11 ls= 13  avg=1648080
+[ 92/100] iter=167 shake=14 ls=111  avg=1572998
+[ 93/100] iter= 32 shake=13 ls=120  avg=1588334
+[ 94/100] iter=105 shake= 5 ls= 22  avg=1642808
+[ 95/100] iter=115 shake= 7 ls=134  avg=1566703
+[ 96/100] iter=105 shake=13 ls=147  avg=1569228
+[ 97/100] iter= 49 shake= 2 ls= 12  avg=1720219
+[ 98/100] iter= 36 shake= 3 ls= 60  avg=1617688
+[ 99/100] iter=181 shake= 4 ls=176  avg=1565653  <-- best
+[100/100] iter=149 shake= 9 ls= 57  avg=1586135
+
+  Best VNS: iter=181 shake=4 ls=176  (avg=1565653)
+  Final: 30 runs x 3 instances...
+    [cap41_ss] best=1559754  avg=1565759.2  std=5448.4
+    [cap81_ss] best=1180961.3  avg=1188119.7  std=3777.2
+    [cap111_ss] best=1176037.0  avg=1194492.0  std=8759.3
+
+=== GRASP: random search (100 configs x 3 runs) ===
+[  1/100] iter=188 rcl=6 ls=206  avg=1717474  <-- best
+[  2/100] iter=158 rcl=2 ls=181  avg=1631378  <-- best
+[  3/100] iter=276 rcl=7 ls=137  avg=1794095
+[  4/100] iter=133 rcl=4 ls=236  avg=1678014
+[  5/100] iter=165 rcl=4 ls= 33  avg=1793051
+[  6/100] iter=119 rcl=2 ls=289  avg=1616962  <-- best
+[  7/100] iter=227 rcl=2 ls= 43  avg=1661774
+[  8/100] iter= 45 rcl=5 ls=236  avg=1701062
+[  9/100] iter= 88 rcl=1 ls=129  avg=1623904
+[ 10/100] iter=255 rcl=3 ls=142  avg=1681109
+[ 11/100] iter=119 rcl=8 ls=222  avg=1778972
+[ 12/100] iter=222 rcl=3 ls=191  avg=1649187
+[ 13/100] iter=179 rcl=8 ls=153  avg=1824474
+[ 14/100] iter=131 rcl=6 ls=288  avg=1687536
+[ 15/100] iter=283 rcl=2 ls=225  avg=1624336
+[ 16/100] iter=155 rcl=2 ls= 95  avg=1658463
+[ 17/100] iter= 28 rcl=5 ls= 93  avg=1816841
+[ 18/100] iter= 65 rcl=5 ls=256  avg=1704303
+[ 19/100] iter= 34 rcl=7 ls=159  avg=1807333
+[ 20/100] iter=288 rcl=5 ls= 63  avg=1794462
+[ 21/100] iter=113 rcl=5 ls=236  avg=1698789
+[ 22/100] iter=153 rcl=1 ls=116  avg=1636928
+[ 23/100] iter= 41 rcl=3 ls=224  avg=1688823
+[ 24/100] iter=135 rcl=4 ls=218  avg=1701690
+[ 25/100] iter=213 rcl=5 ls=142  avg=1742907
+[ 26/100] iter=149 rcl=2 ls= 41  avg=1669685
+[ 27/100] iter=250 rcl=1 ls=244  avg=1609699  <-- best
+[ 28/100] iter= 20 rcl=6 ls=291  avg=1714281
+[ 29/100] iter= 96 rcl=1 ls=185  avg=1620891
+[ 30/100] iter= 48 rcl=3 ls=108  avg=1728566
+[ 31/100] iter= 45 rcl=7 ls=277  avg=1741656
+[ 32/100] iter=290 rcl=2 ls=241  avg=1629551
+[ 33/100] iter=287 rcl=6 ls=145  avg=1741842
+[ 34/100] iter=166 rcl=2 ls= 44  avg=1685283
+[ 35/100] iter=172 rcl=8 ls=265  avg=1746144
+[ 36/100] iter=233 rcl=6 ls=199  avg=1726319
+[ 37/100] iter=246 rcl=7 ls=205  avg=1729692
+[ 38/100] iter=223 rcl=6 ls=199  avg=1708120
+[ 39/100] iter=258 rcl=8 ls= 90  avg=1850748
+[ 40/100] iter=273 rcl=4 ls=201  avg=1692203
+[ 41/100] iter= 82 rcl=6 ls=297  avg=1687809
+[ 42/100] iter= 34 rcl=8 ls=208  avg=1786285
+[ 43/100] iter= 31 rcl=1 ls=218  avg=1640766
+[ 44/100] iter=185 rcl=8 ls=300  avg=1689358
+[ 45/100] iter= 70 rcl=5 ls=179  avg=1753843
+[ 46/100] iter=152 rcl=8 ls=107  avg=1879037
+[ 47/100] iter= 29 rcl=1 ls=215  avg=1629126
+[ 48/100] iter=225 rcl=3 ls= 74  avg=1720454
+[ 49/100] iter=279 rcl=1 ls=292  avg=1601525  <-- best
+[ 50/100] iter=138 rcl=8 ls=243  avg=1745671
+[ 51/100] iter=153 rcl=6 ls=262  avg=1721289
+[ 52/100] iter= 35 rcl=7 ls=147  avg=1836261
+[ 53/100] iter=109 rcl=5 ls=252  avg=1716528
+[ 54/100] iter=201 rcl=1 ls=202  avg=1615243
+[ 55/100] iter=187 rcl=3 ls= 84  avg=1697702
+[ 56/100] iter=177 rcl=1 ls=155  avg=1620319
+[ 57/100] iter= 41 rcl=8 ls=215  avg=1790969
+[ 58/100] iter=169 rcl=3 ls=143  avg=1666327
+[ 59/100] iter=223 rcl=4 ls= 38  avg=1750417
+[ 60/100] iter=180 rcl=3 ls=245  avg=1654904
+[ 61/100] iter=171 rcl=5 ls=242  avg=1686367
+[ 62/100] iter=205 rcl=3 ls=227  avg=1655586
+[ 63/100] iter=195 rcl=5 ls=268  avg=1679647
+[ 64/100] iter=139 rcl=5 ls=266  avg=1695268
+[ 65/100] iter= 85 rcl=4 ls= 26  avg=1828758
+[ 66/100] iter=149 rcl=7 ls=298  avg=1695271
+[ 67/100] iter= 25 rcl=1 ls=265  avg=1631042
+[ 68/100] iter= 72 rcl=5 ls=127  avg=1758148
+[ 69/100] iter=283 rcl=8 ls=244  avg=1707003
+[ 70/100] iter= 39 rcl=8 ls= 22  avg=2104309
+[ 71/100] iter=118 rcl=1 ls=235  avg=1602828
+[ 72/100] iter= 44 rcl=4 ls= 30  avg=1850999
+[ 73/100] iter=154 rcl=4 ls=196  avg=1685037
+[ 74/100] iter=183 rcl=7 ls= 96  avg=1826892
+[ 75/100] iter=296 rcl=4 ls=235  avg=1664531
+[ 76/100] iter= 45 rcl=4 ls=114  avg=1778377
+[ 77/100] iter=138 rcl=5 ls=227  avg=1691427
+[ 78/100] iter=225 rcl=2 ls= 20  avg=1680941
+[ 79/100] iter= 51 rcl=4 ls=119  avg=1771541
+[ 80/100] iter=103 rcl=3 ls=259  avg=1628378
+[ 81/100] iter=103 rcl=6 ls= 85  avg=1808678
+[ 82/100] iter=185 rcl=1 ls= 97  avg=1643546
+[ 83/100] iter= 25 rcl=8 ls=297  avg=1794830
+[ 84/100] iter= 32 rcl=4 ls= 50  avg=1870173
+[ 85/100] iter=127 rcl=4 ls=210  avg=1685744
+[ 86/100] iter= 54 rcl=2 ls=288  avg=1639167
+[ 87/100] iter=286 rcl=7 ls=240  avg=1715214
+[ 88/100] iter= 92 rcl=1 ls=185  avg=1621464
+[ 89/100] iter=137 rcl=8 ls=267  avg=1735334
+[ 90/100] iter=268 rcl=8 ls=188  avg=1763131
+[ 91/100] iter=151 rcl=8 ls=192  avg=1776645
+[ 92/100] iter=297 rcl=2 ls=228  avg=1619244
+[ 93/100] iter=298 rcl=1 ls= 85  avg=1643867
+[ 94/100] iter=132 rcl=8 ls=255  avg=1745731
+[ 95/100] iter=202 rcl=2 ls=190  avg=1620703
+[ 96/100] iter=253 rcl=5 ls= 53  avg=1777244
+[ 97/100] iter= 84 rcl=1 ls= 69  avg=1640272
+[ 98/100] iter=127 rcl=2 ls= 30  avg=1685820
+[ 99/100] iter= 72 rcl=8 ls=239  avg=1759789
+[100/100] iter=252 rcl=3 ls=245  avg=1658663
+
+  Best GRASP: iter=279 rcl=1 ls=292  (avg=1601525)
+  Final: 30 runs x 3 instances...
+    [cap41_ss] best=1588663  avg=1604554.8  std=6302.7
+    [cap81_ss] best=1191154.2  avg=1197534.4  std=3913.8
+    [cap111_ss] best=1184545.4  avg=1187814.7  std=1888.0
+
+=== TUNING COMPLETE ===
+Tuning CSVs:    data\tuning/tuning_*.csv
+Final results:  data\tuning\final_results.csv
+Generating SVG plots...
+  01_baseline_comparison.svg
+  02_ea_convergence.svg
+  03_sa_convergence.svg
+  04_vns_convergence.svg
+  05_grasp_convergence.svg
+  06_ea_param_sweep.svg
+  07_sa_param_sweep.svg
+  08_vns_param_sweep.svg
+  09_grasp_param_sweep.svg
+  10_convergence_all_algorithms.svg
+  11_scalability.svg
+  tuning_EA_ranked.svg
+  tuning_SA_ranked.svg
+  tuning_VNS_ranked.svg
+  tuning_GRASP_ranked.svg
+  tuning_final_comparison.svg
+Done. Plots saved to: "plots"

@@ -1,0 +1,53 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns='http://www.w3.org/2000/svg' width='1050' height='520'>
+<rect width='100%' height='100%' fill='white'/>
+<line x1='90.00' y1='440.00' x2='880.00' y2='440.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='444.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>0</text>
+<line x1='90.00' y1='366.00' x2='880.00' y2='366.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='370.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>552377</text>
+<line x1='90.00' y1='292.00' x2='880.00' y2='292.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='296.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>1104755</text>
+<line x1='90.00' y1='218.00' x2='880.00' y2='218.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='222.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>1657132</text>
+<line x1='90.00' y1='144.00' x2='880.00' y2='144.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='148.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>2209509</text>
+<line x1='90.00' y1='70.00' x2='880.00' y2='70.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='74.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>2761886</text>
+<line x1='90.00' y1='70.00' x2='90.00' y2='440.00' stroke='#888' stroke-width='1.50'/>
+<line x1='90.00' y1='440.00' x2='880.00' y2='440.00' stroke='#888' stroke-width='1.50'/>
+<rect x='116.33' y='146.30' width='33.11' height='293.70' fill='#e63946' rx='3'/>
+<rect x='151.44' y='214.29' width='33.11' height='225.71' fill='#f4a261' rx='3'/>
+<rect x='186.56' y='230.70' width='33.11' height='209.30' fill='#2a9d8f' rx='3'/>
+<rect x='221.67' y='230.34' width='33.11' height='209.66' fill='#8ecae6' rx='3'/>
+<rect x='256.78' y='228.63' width='33.11' height='211.37' fill='#a8dadc' rx='3'/>
+<rect x='291.89' y='219.75' width='33.11' height='220.25' fill='#457b9d' rx='3'/>
+<text x='221.67' y='458.00' text-anchor='middle' font-size='10' fill='#333' font-family='Arial,sans-serif'>cap41_ss</text>
+<rect x='379.67' y='167.26' width='33.11' height='272.74' fill='#e63946' rx='3'/>
+<rect x='414.78' y='271.71' width='33.11' height='168.29' fill='#f4a261' rx='3'/>
+<rect x='449.89' y='281.06' width='33.11' height='158.94' fill='#2a9d8f' rx='3'/>
+<rect x='485.00' y='281.27' width='33.11' height='158.73' fill='#8ecae6' rx='3'/>
+<rect x='520.11' y='279.46' width='33.11' height='160.54' fill='#a8dadc' rx='3'/>
+<rect x='555.22' y='277.64' width='33.11' height='162.36' fill='#457b9d' rx='3'/>
+<text x='485.00' y='458.00' text-anchor='middle' font-size='10' fill='#333' font-family='Arial,sans-serif'>cap81_ss</text>
+<rect x='643.00' y='109.64' width='33.11' height='330.36' fill='#e63946' rx='3'/>
+<rect x='678.11' y='276.33' width='33.11' height='163.67' fill='#f4a261' rx='3'/>
+<rect x='713.22' y='281.96' width='33.11' height='158.04' fill='#2a9d8f' rx='3'/>
+<rect x='748.33' y='282.74' width='33.11' height='157.26' fill='#8ecae6' rx='3'/>
+<rect x='783.44' y='276.44' width='33.11' height='163.56' fill='#a8dadc' rx='3'/>
+<rect x='818.56' y='279.08' width='33.11' height='160.92' fill='#457b9d' rx='3'/>
+<text x='748.33' y='458.00' text-anchor='middle' font-size='10' fill='#333' font-family='Arial,sans-serif'>cap111_ss</text>
+<text x='485.00' y='38.00' text-anchor='middle' font-size='14' fill='#222' font-family='Arial,sans-serif'>Baseline: best objective value (all algorithms x 3 instances)</text>
+<text x='25.00' y='255.00' text-anchor='middle' font-size='11' fill='#555' font-family='Arial,sans-serif' transform='rotate(-90.00,25.00,255.00)'>Best objective value</text>
+<rect x='895.00' y='90.00' width='16.00' height='14.00' fill='#e63946' rx='3'/>
+<text x='916.00' y='102.00' text-anchor='start' font-size='10' fill='#444' font-family='Arial,sans-serif'>random</text>
+<rect x='895.00' y='112.00' width='16.00' height='14.00' fill='#f4a261' rx='3'/>
+<text x='916.00' y='124.00' text-anchor='start' font-size='10' fill='#444' font-family='Arial,sans-serif'>greedy</text>
+<rect x='895.00' y='134.00' width='16.00' height='14.00' fill='#2a9d8f' rx='3'/>
+<text x='916.00' y='146.00' text-anchor='start' font-size='10' fill='#444' font-family='Arial,sans-serif'>EA</text>
+<rect x='895.00' y='156.00' width='16.00' height='14.00' fill='#8ecae6' rx='3'/>
+<text x='916.00' y='168.00' text-anchor='start' font-size='10' fill='#444' font-family='Arial,sans-serif'>SA</text>
+<rect x='895.00' y='178.00' width='16.00' height='14.00' fill='#a8dadc' rx='3'/>
+<text x='916.00' y='190.00' text-anchor='start' font-size='10' fill='#444' font-family='Arial,sans-serif'>VNS</text>
+<rect x='895.00' y='200.00' width='16.00' height='14.00' fill='#457b9d' rx='3'/>
+<text x='916.00' y='212.00' text-anchor='start' font-size='10' fill='#444' font-family='Arial,sans-serif'>GRASP</text>
+</svg>

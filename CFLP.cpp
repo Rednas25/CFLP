@@ -23,10 +23,10 @@ const int VNS_RUNS = 10;
 const int GRASP_RUNS = 10;
 
 const std::string SUMMARY_CSV_PATH = (PROJECT_DIR / "summary.csv").string();
-const std::string EA_RUNS_DIR = (PROJECT_DIR / "ea_runs4").string();
-const std::string SA_RUNS_DIR = (PROJECT_DIR / "sa_runs").string();
-const std::string VNS_RUNS_DIR = (PROJECT_DIR / "vns_runs").string();
-const std::string GRASP_RUNS_DIR = (PROJECT_DIR / "grasp_runs").string();
+std::string EA_RUNS_DIR   = (PROJECT_DIR / "ea_runs4").string();
+std::string SA_RUNS_DIR   = (PROJECT_DIR / "sa_runs").string();
+std::string VNS_RUNS_DIR  = (PROJECT_DIR / "vns_runs").string();
+std::string GRASP_RUNS_DIR = (PROJECT_DIR / "grasp_runs").string();
 
 const bool SAVE_PROGRESS_CSV = true;
 const bool EA_VERBOSE = false;
@@ -151,8 +151,18 @@ Solution crossover(
     double better_parent_bias,
     std::mt19937& rng
 );
+void run_batch_experiments();
+void run_tuning();
 
 int main(int argc, char* argv[]) {
+    if (argc > 1 && std::string(argv[1]) == "--batch") {
+        run_batch_experiments();
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "--tune") {
+        run_tuning();
+        return 0;
+    }
     std::string path = (PROJECT_DIR / DEFAULT_INSTANCE_NAME).string();
     if (argc > 1) {
         path = argv[1];
@@ -1640,4 +1650,600 @@ Solution grasp_algorithm(const Problem& problem, std::ofstream& csv_output, cons
     }
 
     return best_overall;
+}
+
+// ── Batch experiment mode ─────────────────────────────────────────────────────
+
+void run_batch_experiments() {
+    namespace fs = std::filesystem;
+    fs::create_directories(PROJECT_DIR / "data");
+
+    const std::string batch_csv = (PROJECT_DIR / "data" / "batch_summary.csv").string();
+    {
+        std::ofstream f(batch_csv);
+        f << "instance,method,config_tag,runs,best,worst,avg,std,time_ms\n";
+    }
+
+    auto record = [&](const std::string& inst, const std::string& method,
+                      const std::string& tag, int runs, const Stats& st, long long ms) {
+        std::ofstream f(batch_csv, std::ios::app);
+        f << inst << ',' << method << ',' << tag << ',' << runs << ','
+          << st.best << ',' << st.worst << ','
+          << std::fixed << std::setprecision(3) << st.avg << ','
+          << std::fixed << std::setprecision(3) << st.std << ','
+          << ms << '\n';
+        std::cout << "  " << method << " [" << tag << "]"
+                  << "  best=" << st.best
+                  << "  avg=" << std::fixed << std::setprecision(1) << st.avg
+                  << "  (" << ms / 1000 << "s)\n";
+        std::cout.flush();
+    };
+
+    auto elapsed_ms = [](std::chrono::steady_clock::time_point t0) -> long long {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - t0).count();
+    };
+
+    std::mt19937 rng(42);
+
+    std::vector<std::pair<std::string, std::string>> instances = {
+        {"cap41_ss.txt",  "cap41_ss"},
+        {"cap81_ss.txt",  "cap81_ss"},
+        {"cap111_ss.txt", "cap111_ss"},
+    };
+
+    // ── 1. BASELINE ───────────────────────────────────────────────────────────
+    std::cout << "\n=== 1. BASELINE (all algorithms x 3 instances) ===\n";
+
+    for (auto& [inst_file, inst_name] : instances) {
+        Problem problem = load_problem((PROJECT_DIR / inst_file).string());
+        std::cout << "\nInstance: " << inst_name << "\n";
+
+        // Random
+        {
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            res.reserve(RANDOM_RUNS);
+            for (int r = 0; r < RANDOM_RUNS; ++r)
+                res.push_back(random_solution(problem, rng).objective_value);
+            record(inst_name, "random", "default", RANDOM_RUNS, calculate_stats(res), elapsed_ms(t0));
+        }
+
+        // Greedy
+        {
+            auto t0 = std::chrono::steady_clock::now();
+            Solution s = greedy_solution(problem);
+            Stats st;
+            st.best = st.worst = st.avg = st.std = s.objective_value;
+            record(inst_name, "greedy", "default", 1, st, elapsed_ms(t0));
+        }
+
+        // EA default
+        {
+            EAConfig cfg;
+            EA_RUNS_DIR = (PROJECT_DIR / "data" / ("ea_default_" + inst_name)).string();
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int run = 1; run <= EA_RUNS; ++run) {
+                std::string path = make_ea_csv_path(inst_name, cfg, run);
+                std::ofstream csv;
+                create_ea_csv(path);
+                csv.open(path, std::ios::app);
+                res.push_back(evolutionary_algorithm(problem, csv, cfg, rng).objective_value);
+            }
+            record(inst_name, "EA", "default", EA_RUNS, calculate_stats(res), elapsed_ms(t0));
+        }
+
+        // SA default
+        {
+            SAConfig cfg;
+            SA_RUNS_DIR = (PROJECT_DIR / "data" / ("sa_default_" + inst_name)).string();
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int run = 1; run <= SA_RUNS; ++run) {
+                std::string path = make_sa_csv_path(inst_name, cfg, run);
+                std::ofstream csv;
+                create_sa_csv(path);
+                csv.open(path, std::ios::app);
+                res.push_back(simulated_annealing(problem, csv, cfg, rng).objective_value);
+            }
+            record(inst_name, "SA", "default", SA_RUNS, calculate_stats(res), elapsed_ms(t0));
+        }
+
+        // VNS default
+        {
+            VNSConfig cfg;
+            VNS_RUNS_DIR = (PROJECT_DIR / "data" / ("vns_default_" + inst_name)).string();
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int run = 1; run <= VNS_RUNS; ++run) {
+                std::string path = make_vns_csv_path(inst_name, cfg, run);
+                std::ofstream csv;
+                create_vns_csv(path);
+                csv.open(path, std::ios::app);
+                res.push_back(variable_neighborhood_search(problem, csv, cfg, rng).objective_value);
+            }
+            record(inst_name, "VNS", "default", VNS_RUNS, calculate_stats(res), elapsed_ms(t0));
+        }
+
+        // GRASP default
+        {
+            GRASPConfig cfg;
+            GRASP_RUNS_DIR = (PROJECT_DIR / "data" / ("grasp_default_" + inst_name)).string();
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int run = 1; run <= GRASP_RUNS; ++run) {
+                std::string path = make_grasp_csv_path(inst_name, cfg, run);
+                std::ofstream csv;
+                create_grasp_csv(path);
+                csv.open(path, std::ios::app);
+                res.push_back(grasp_algorithm(problem, csv, cfg, rng).objective_value);
+            }
+            record(inst_name, "GRASP", "default", GRASP_RUNS, calculate_stats(res), elapsed_ms(t0));
+        }
+    }
+
+    // ── 2. EA PARAMETER SWEEP (cap41_ss) ──────────────────────────────────────
+    std::cout << "\n=== 2. EA PARAMETER SWEEP (cap41_ss) ===\n";
+    {
+        Problem problem = load_problem((PROJECT_DIR / "cap41_ss.txt").string());
+        const std::string inst = "cap41_ss";
+
+        // {pop_size, gen, tour_size, mutation_pro, cross_pro, better_parent_bias}
+        std::vector<std::pair<std::string, EAConfig>> cfgs = {
+            {"pop20",  EAConfig{20,  250,  7, 0.90, 0.85, 0.50}},
+            {"pop80",  EAConfig{80,  250,  7, 0.90, 0.85, 0.50}},
+            {"gen100", EAConfig{40,  100,  7, 0.90, 0.85, 0.50}},
+            {"gen500", EAConfig{40,  500,  7, 0.90, 0.85, 0.50}},
+            {"pm050",  EAConfig{40,  250,  7, 0.50, 0.85, 0.50}},
+            {"pm070",  EAConfig{40,  250,  7, 0.70, 0.85, 0.50}},
+            {"tour3",  EAConfig{40,  250,  3, 0.90, 0.85, 0.50}},
+            {"tour10", EAConfig{40,  250, 10, 0.90, 0.85, 0.50}},
+        };
+
+        for (auto& [tag, cfg] : cfgs) {
+            EA_RUNS_DIR = (PROJECT_DIR / "data" / ("ea_" + tag)).string();
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int run = 1; run <= EA_RUNS; ++run) {
+                std::string path = make_ea_csv_path(inst, cfg, run);
+                std::ofstream csv;
+                create_ea_csv(path);
+                csv.open(path, std::ios::app);
+                res.push_back(evolutionary_algorithm(problem, csv, cfg, rng).objective_value);
+            }
+            record(inst, "EA", tag, EA_RUNS, calculate_stats(res), elapsed_ms(t0));
+        }
+    }
+
+    // ── 3. SA PARAMETER SWEEP (cap41_ss) ──────────────────────────────────────
+    std::cout << "\n=== 3. SA PARAMETER SWEEP (cap41_ss) ===\n";
+    {
+        Problem problem = load_problem((PROJECT_DIR / "cap41_ss.txt").string());
+        const std::string inst = "cap41_ss";
+
+        // {initial_temp, cooling_rate, min_temp, iter_per_temp}
+        std::vector<std::pair<std::string, SAConfig>> cfgs = {
+            {"t0_50k",  SAConfig{50000.0,  0.995, 8.0,  5}},
+            {"t0_500k", SAConfig{500000.0, 0.995, 8.0,  5}},
+            {"cool990", SAConfig{180000.0, 0.990, 8.0,  5}},
+            {"cool999", SAConfig{180000.0, 0.999, 8.0,  5}},
+            {"iter2",   SAConfig{180000.0, 0.995, 8.0,  2}},
+            {"iter10",  SAConfig{180000.0, 0.995, 8.0, 10}},
+        };
+
+        for (auto& [tag, cfg] : cfgs) {
+            SA_RUNS_DIR = (PROJECT_DIR / "data" / ("sa_" + tag)).string();
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int run = 1; run <= SA_RUNS; ++run) {
+                std::string path = make_sa_csv_path(inst, cfg, run);
+                std::ofstream csv;
+                create_sa_csv(path);
+                csv.open(path, std::ios::app);
+                res.push_back(simulated_annealing(problem, csv, cfg, rng).objective_value);
+            }
+            record(inst, "SA", tag, SA_RUNS, calculate_stats(res), elapsed_ms(t0));
+        }
+    }
+
+    // ── 4. VNS PARAMETER SWEEP (cap41_ss) ─────────────────────────────────────
+    std::cout << "\n=== 4. VNS PARAMETER SWEEP (cap41_ss) ===\n";
+    {
+        Problem problem = load_problem((PROJECT_DIR / "cap41_ss.txt").string());
+        const std::string inst = "cap41_ss";
+
+        // {max_iterations, shake_attempts_per_neighborhood, local_search_attempts}
+        std::vector<std::pair<std::string, VNSConfig>> cfgs = {
+            {"iter20",  VNSConfig{20,  5,  60}},
+            {"iter100", VNSConfig{100, 5,  60}},
+            {"shake3",  VNSConfig{50,  3,  60}},
+            {"shake8",  VNSConfig{50,  8,  60}},
+            {"ls30",    VNSConfig{50,  5,  30}},
+            {"ls120",   VNSConfig{50,  5, 120}},
+        };
+
+        for (auto& [tag, cfg] : cfgs) {
+            VNS_RUNS_DIR = (PROJECT_DIR / "data" / ("vns_" + tag)).string();
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int run = 1; run <= VNS_RUNS; ++run) {
+                std::string path = make_vns_csv_path(inst, cfg, run);
+                std::ofstream csv;
+                create_vns_csv(path);
+                csv.open(path, std::ios::app);
+                res.push_back(variable_neighborhood_search(problem, csv, cfg, rng).objective_value);
+            }
+            record(inst, "VNS", tag, VNS_RUNS, calculate_stats(res), elapsed_ms(t0));
+        }
+    }
+
+    // ── 5. GRASP PARAMETER SWEEP (cap41_ss) ───────────────────────────────────
+    std::cout << "\n=== 5. GRASP PARAMETER SWEEP (cap41_ss) ===\n";
+    {
+        Problem problem = load_problem((PROJECT_DIR / "cap41_ss.txt").string());
+        const std::string inst = "cap41_ss";
+
+        // {iterations, rcl_size, local_search_attempts}
+        std::vector<std::pair<std::string, GRASPConfig>> cfgs = {
+            {"iter50",  GRASPConfig{50,  2, 100}},
+            {"iter200", GRASPConfig{200, 2, 100}},
+            {"rcl1",    GRASPConfig{100, 1, 100}},
+            {"rcl4",    GRASPConfig{100, 4, 100}},
+            {"ls50",    GRASPConfig{100, 2,  50}},
+            {"ls200",   GRASPConfig{100, 2, 200}},
+        };
+
+        for (auto& [tag, cfg] : cfgs) {
+            GRASP_RUNS_DIR = (PROJECT_DIR / "data" / ("grasp_" + tag)).string();
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int run = 1; run <= GRASP_RUNS; ++run) {
+                std::string path = make_grasp_csv_path(inst, cfg, run);
+                std::ofstream csv;
+                create_grasp_csv(path);
+                csv.open(path, std::ios::app);
+                res.push_back(grasp_algorithm(problem, csv, cfg, rng).objective_value);
+            }
+            record(inst, "GRASP", tag, GRASP_RUNS, calculate_stats(res), elapsed_ms(t0));
+        }
+    }
+
+    std::cout << "\n=== BATCH COMPLETE ===\n";
+    std::cout << "Wyniki: " << batch_csv << "\n";
+}
+
+// ── Random-search tuning mode ─────────────────────────────────────────────────
+// For each algorithm: sample 100 random configs, run TUNE_RUNS times each on
+// cap41_ss to rank configs, then run the winner FINAL_RUNS times on all instances.
+
+void run_tuning() {
+    namespace fs = std::filesystem;
+    const fs::path tune_dir = PROJECT_DIR / "data" / "tuning";
+    fs::create_directories(tune_dir);
+
+    const int TUNE_VARIANTS  = 100;
+    const int TUNE_RUNS      = 3;
+    const int FINAL_RUNS     = 30;
+    const std::string tune_inst_file = "cap41_ss.txt";
+    const std::string tune_inst_name = "cap41_ss";
+    const std::vector<std::string> final_inst_files = {
+        "cap41_ss.txt", "cap81_ss.txt", "cap111_ss.txt"
+    };
+
+    Problem tune_problem = load_problem((PROJECT_DIR / tune_inst_file).string());
+    std::mt19937 rng(std::random_device{}());
+    std::mt19937 prng(42);   // separate, fixed-seed RNG for param sampling
+
+    // final_results.csv – one row per (method, instance) for the best config
+    const std::string final_csv = (tune_dir / "final_results.csv").string();
+    {
+        std::ofstream f(final_csv);
+        f << "method,instance,runs,best,worst,avg,std,time_ms\n";
+    }
+
+    auto write_final = [&](const std::string& method, const std::string& inst,
+                           int runs, const Stats& st, long long ms) {
+        std::ofstream f(final_csv, std::ios::app);
+        f << method << ',' << inst << ',' << runs << ','
+          << st.best << ',' << st.worst << ','
+          << std::fixed << std::setprecision(3) << st.avg << ','
+          << std::fixed << std::setprecision(3) << st.std << ','
+          << ms << '\n';
+        std::cout << "    [" << inst << "] best=" << st.best
+                  << "  avg=" << std::fixed << std::setprecision(1) << st.avg
+                  << "  std=" << std::fixed << std::setprecision(1) << st.std << "\n";
+    };
+
+    auto elapsed_ms = [](std::chrono::steady_clock::time_point t0) -> long long {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - t0).count();
+    };
+
+    // ── 1. EA ─────────────────────────────────────────────────────────────────
+    {
+        std::cout << "\n=== EA: random search (" << TUNE_VARIANTS
+                  << " configs x " << TUNE_RUNS << " runs) ===\n";
+
+        const std::string csv = (tune_dir / "tuning_EA.csv").string();
+        { std::ofstream f(csv); f << "config_id,pop_size,gen,tour_size,mutation_pro,cross_pro,bias,best,avg,std,time_ms\n"; }
+
+        std::uniform_int_distribution<int>     pop_d(10,  100);
+        std::uniform_int_distribution<int>     gen_d(50,  600);
+        std::uniform_int_distribution<int>    tour_d(2,   15);
+        std::uniform_real_distribution<double>  mut_d(0.10, 1.00);
+        std::uniform_real_distribution<double>  crs_d(0.50, 1.00);
+        std::uniform_real_distribution<double> bias_d(0.30, 0.80);
+
+        EAConfig best_cfg;
+        double   best_avg = std::numeric_limits<double>::max();
+
+        for (int v = 1; v <= TUNE_VARIANTS; ++v) {
+            EAConfig cfg;
+            cfg.pop_size           = pop_d(prng);
+            cfg.gen                = gen_d(prng);
+            cfg.tour_size          = tour_d(prng);
+            cfg.mutation_pro       = mut_d(prng);
+            cfg.cross_pro          = crs_d(prng);
+            cfg.better_parent_bias = bias_d(prng);
+
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int r = 0; r < TUNE_RUNS; ++r) {
+                std::ofstream null_csv;
+                res.push_back(evolutionary_algorithm(tune_problem, null_csv, cfg, rng).objective_value);
+            }
+            long long ms = elapsed_ms(t0);
+            Stats st = calculate_stats(res);
+
+            { std::ofstream f(csv, std::ios::app);
+              f << v << ',' << cfg.pop_size << ',' << cfg.gen << ',' << cfg.tour_size << ','
+                << std::fixed << std::setprecision(4) << cfg.mutation_pro << ','
+                << cfg.cross_pro << ',' << cfg.better_parent_bias << ','
+                << st.best << ',' << st.avg << ',' << st.std << ',' << ms << '\n'; }
+
+            if (st.avg < best_avg) { best_avg = st.avg; best_cfg = cfg; }
+
+            std::cout << "[" << std::setw(3) << v << "/" << TUNE_VARIANTS << "]"
+                      << " pop=" << std::setw(3) << cfg.pop_size
+                      << " gen=" << std::setw(3) << cfg.gen
+                      << " tour=" << std::setw(2) << cfg.tour_size
+                      << " pm=" << std::fixed << std::setprecision(2) << cfg.mutation_pro
+                      << "  avg=" << std::fixed << std::setprecision(0) << st.avg
+                      << (st.avg <= best_avg ? "  <-- best" : "") << "\n";
+            std::cout.flush();
+        }
+
+        std::cout << "\n  Best EA: pop=" << best_cfg.pop_size << " gen=" << best_cfg.gen
+                  << " tour=" << best_cfg.tour_size
+                  << " pm=" << std::fixed << std::setprecision(3) << best_cfg.mutation_pro
+                  << " px=" << best_cfg.cross_pro << " bias=" << best_cfg.better_parent_bias
+                  << "  (avg=" << std::fixed << std::setprecision(0) << best_avg << ")\n";
+        std::cout << "  Final: " << FINAL_RUNS << " runs x 3 instances...\n";
+
+        for (const std::string& ifn : final_inst_files) {
+            Problem p = load_problem((PROJECT_DIR / ifn).string());
+            std::string iname = name_from_path((PROJECT_DIR / ifn).string());
+            EA_RUNS_DIR = (tune_dir / ("ea_best_" + iname)).string();
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int run = 1; run <= FINAL_RUNS; ++run) {
+                std::string path = make_ea_csv_path(iname, best_cfg, run);
+                std::ofstream cf; create_ea_csv(path); cf.open(path, std::ios::app);
+                res.push_back(evolutionary_algorithm(p, cf, best_cfg, rng).objective_value);
+            }
+            write_final("EA", iname, FINAL_RUNS, calculate_stats(res), elapsed_ms(t0));
+        }
+    }
+
+    // ── 2. SA ─────────────────────────────────────────────────────────────────
+    {
+        std::cout << "\n=== SA: random search (" << TUNE_VARIANTS
+                  << " configs x " << TUNE_RUNS << " runs) ===\n";
+
+        const std::string csv = (tune_dir / "tuning_SA.csv").string();
+        { std::ofstream f(csv); f << "config_id,initial_temp,cooling_rate,min_temp,iter_per_temp,best,avg,std,time_ms\n"; }
+
+        // Ranges keep total iterations tractable
+        std::uniform_real_distribution<double>  t0_d(5000.0, 300000.0);
+        std::uniform_real_distribution<double> cool_d(0.9800,  0.9990);
+        std::uniform_real_distribution<double> mint_d(0.5,     10.0);
+        std::uniform_int_distribution<int>     iter_d(1, 10);
+
+        SAConfig best_cfg;
+        double   best_avg = std::numeric_limits<double>::max();
+
+        for (int v = 1; v <= TUNE_VARIANTS; ++v) {
+            SAConfig cfg;
+            cfg.initial_temp  = t0_d(prng);
+            cfg.cooling_rate  = cool_d(prng);
+            cfg.min_temp      = mint_d(prng);
+            cfg.iter_per_temp = iter_d(prng);
+
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int r = 0; r < TUNE_RUNS; ++r) {
+                std::ofstream null_csv;
+                res.push_back(simulated_annealing(tune_problem, null_csv, cfg, rng).objective_value);
+            }
+            long long ms = elapsed_ms(t0);
+            Stats st = calculate_stats(res);
+
+            { std::ofstream f(csv, std::ios::app);
+              f << v << ','
+                << std::fixed << std::setprecision(1) << cfg.initial_temp << ','
+                << std::fixed << std::setprecision(5) << cfg.cooling_rate << ','
+                << std::fixed << std::setprecision(2) << cfg.min_temp << ','
+                << cfg.iter_per_temp << ','
+                << st.best << ',' << st.avg << ',' << st.std << ',' << ms << '\n'; }
+
+            if (st.avg < best_avg) { best_avg = st.avg; best_cfg = cfg; }
+
+            std::cout << "[" << std::setw(3) << v << "/" << TUNE_VARIANTS << "]"
+                      << " T0=" << std::setw(7) << std::fixed << std::setprecision(0) << cfg.initial_temp
+                      << " cool=" << std::fixed << std::setprecision(4) << cfg.cooling_rate
+                      << " ipt=" << cfg.iter_per_temp
+                      << "  avg=" << std::fixed << std::setprecision(0) << st.avg
+                      << (st.avg <= best_avg ? "  <-- best" : "") << "\n";
+            std::cout.flush();
+        }
+
+        std::cout << "\n  Best SA: T0=" << std::fixed << std::setprecision(0) << best_cfg.initial_temp
+                  << " cool=" << std::fixed << std::setprecision(5) << best_cfg.cooling_rate
+                  << " min=" << best_cfg.min_temp << " ipt=" << best_cfg.iter_per_temp
+                  << "  (avg=" << std::fixed << std::setprecision(0) << best_avg << ")\n";
+        std::cout << "  Final: " << FINAL_RUNS << " runs x 3 instances...\n";
+
+        for (const std::string& ifn : final_inst_files) {
+            Problem p = load_problem((PROJECT_DIR / ifn).string());
+            std::string iname = name_from_path((PROJECT_DIR / ifn).string());
+            SA_RUNS_DIR = (tune_dir / ("sa_best_" + iname)).string();
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int run = 1; run <= FINAL_RUNS; ++run) {
+                std::string path = make_sa_csv_path(iname, best_cfg, run);
+                std::ofstream cf; create_sa_csv(path); cf.open(path, std::ios::app);
+                res.push_back(simulated_annealing(p, cf, best_cfg, rng).objective_value);
+            }
+            write_final("SA", iname, FINAL_RUNS, calculate_stats(res), elapsed_ms(t0));
+        }
+    }
+
+    // ── 3. VNS ────────────────────────────────────────────────────────────────
+    {
+        std::cout << "\n=== VNS: random search (" << TUNE_VARIANTS
+                  << " configs x " << TUNE_RUNS << " runs) ===\n";
+
+        const std::string csv = (tune_dir / "tuning_VNS.csv").string();
+        { std::ofstream f(csv); f << "config_id,max_iterations,shake_attempts,local_search_attempts,best,avg,std,time_ms\n"; }
+
+        std::uniform_int_distribution<int>  iter_d(10, 200);
+        std::uniform_int_distribution<int> shake_d(1,  15);
+        std::uniform_int_distribution<int>    ls_d(10, 200);
+
+        VNSConfig best_cfg;
+        double    best_avg = std::numeric_limits<double>::max();
+
+        for (int v = 1; v <= TUNE_VARIANTS; ++v) {
+            VNSConfig cfg;
+            cfg.max_iterations                 = iter_d(prng);
+            cfg.shake_attempts_per_neighborhood = shake_d(prng);
+            cfg.local_search_attempts           = ls_d(prng);
+
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int r = 0; r < TUNE_RUNS; ++r) {
+                std::ofstream null_csv;
+                res.push_back(variable_neighborhood_search(tune_problem, null_csv, cfg, rng).objective_value);
+            }
+            long long ms = elapsed_ms(t0);
+            Stats st = calculate_stats(res);
+
+            { std::ofstream f(csv, std::ios::app);
+              f << v << ',' << cfg.max_iterations << ','
+                << cfg.shake_attempts_per_neighborhood << ',' << cfg.local_search_attempts << ','
+                << st.best << ',' << st.avg << ',' << st.std << ',' << ms << '\n'; }
+
+            if (st.avg < best_avg) { best_avg = st.avg; best_cfg = cfg; }
+
+            std::cout << "[" << std::setw(3) << v << "/" << TUNE_VARIANTS << "]"
+                      << " iter=" << std::setw(3) << cfg.max_iterations
+                      << " shake=" << std::setw(2) << cfg.shake_attempts_per_neighborhood
+                      << " ls="    << std::setw(3) << cfg.local_search_attempts
+                      << "  avg="  << std::fixed << std::setprecision(0) << st.avg
+                      << (st.avg <= best_avg ? "  <-- best" : "") << "\n";
+            std::cout.flush();
+        }
+
+        std::cout << "\n  Best VNS: iter=" << best_cfg.max_iterations
+                  << " shake=" << best_cfg.shake_attempts_per_neighborhood
+                  << " ls=" << best_cfg.local_search_attempts
+                  << "  (avg=" << std::fixed << std::setprecision(0) << best_avg << ")\n";
+        std::cout << "  Final: " << FINAL_RUNS << " runs x 3 instances...\n";
+
+        for (const std::string& ifn : final_inst_files) {
+            Problem p = load_problem((PROJECT_DIR / ifn).string());
+            std::string iname = name_from_path((PROJECT_DIR / ifn).string());
+            VNS_RUNS_DIR = (tune_dir / ("vns_best_" + iname)).string();
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int run = 1; run <= FINAL_RUNS; ++run) {
+                std::string path = make_vns_csv_path(iname, best_cfg, run);
+                std::ofstream cf; create_vns_csv(path); cf.open(path, std::ios::app);
+                res.push_back(variable_neighborhood_search(p, cf, best_cfg, rng).objective_value);
+            }
+            write_final("VNS", iname, FINAL_RUNS, calculate_stats(res), elapsed_ms(t0));
+        }
+    }
+
+    // ── 4. GRASP ──────────────────────────────────────────────────────────────
+    {
+        std::cout << "\n=== GRASP: random search (" << TUNE_VARIANTS
+                  << " configs x " << TUNE_RUNS << " runs) ===\n";
+
+        const std::string csv = (tune_dir / "tuning_GRASP.csv").string();
+        { std::ofstream f(csv); f << "config_id,iterations,rcl_size,local_search_attempts,best,avg,std,time_ms\n"; }
+
+        std::uniform_int_distribution<int>  giter_d(20,  300);
+        std::uniform_int_distribution<int>    rcl_d(1,    8);
+        std::uniform_int_distribution<int>    gls_d(20,  300);
+
+        GRASPConfig best_cfg;
+        double      best_avg = std::numeric_limits<double>::max();
+
+        for (int v = 1; v <= TUNE_VARIANTS; ++v) {
+            GRASPConfig cfg;
+            cfg.iterations            = giter_d(prng);
+            cfg.rcl_size              = rcl_d(prng);
+            cfg.local_search_attempts = gls_d(prng);
+
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int r = 0; r < TUNE_RUNS; ++r) {
+                std::ofstream null_csv;
+                res.push_back(grasp_algorithm(tune_problem, null_csv, cfg, rng).objective_value);
+            }
+            long long ms = elapsed_ms(t0);
+            Stats st = calculate_stats(res);
+
+            { std::ofstream f(csv, std::ios::app);
+              f << v << ',' << cfg.iterations << ',' << cfg.rcl_size << ','
+                << cfg.local_search_attempts << ','
+                << st.best << ',' << st.avg << ',' << st.std << ',' << ms << '\n'; }
+
+            if (st.avg < best_avg) { best_avg = st.avg; best_cfg = cfg; }
+
+            std::cout << "[" << std::setw(3) << v << "/" << TUNE_VARIANTS << "]"
+                      << " iter=" << std::setw(3) << cfg.iterations
+                      << " rcl=" << cfg.rcl_size
+                      << " ls=" << std::setw(3) << cfg.local_search_attempts
+                      << "  avg=" << std::fixed << std::setprecision(0) << st.avg
+                      << (st.avg <= best_avg ? "  <-- best" : "") << "\n";
+            std::cout.flush();
+        }
+
+        std::cout << "\n  Best GRASP: iter=" << best_cfg.iterations
+                  << " rcl=" << best_cfg.rcl_size
+                  << " ls=" << best_cfg.local_search_attempts
+                  << "  (avg=" << std::fixed << std::setprecision(0) << best_avg << ")\n";
+        std::cout << "  Final: " << FINAL_RUNS << " runs x 3 instances...\n";
+
+        for (const std::string& ifn : final_inst_files) {
+            Problem p = load_problem((PROJECT_DIR / ifn).string());
+            std::string iname = name_from_path((PROJECT_DIR / ifn).string());
+            GRASP_RUNS_DIR = (tune_dir / ("grasp_best_" + iname)).string();
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<double> res;
+            for (int run = 1; run <= FINAL_RUNS; ++run) {
+                std::string path = make_grasp_csv_path(iname, best_cfg, run);
+                std::ofstream cf; create_grasp_csv(path); cf.open(path, std::ios::app);
+                res.push_back(grasp_algorithm(p, cf, best_cfg, rng).objective_value);
+            }
+            write_final("GRASP", iname, FINAL_RUNS, calculate_stats(res), elapsed_ms(t0));
+        }
+    }
+
+    std::cout << "\n=== TUNING COMPLETE ===\n";
+    std::cout << "Tuning CSVs:    " << (tune_dir).string() << "/tuning_*.csv\n";
+    std::cout << "Final results:  " << final_csv << "\n";
 }

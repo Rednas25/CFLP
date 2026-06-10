@@ -1,0 +1,45 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns='http://www.w3.org/2000/svg' width='900' height='480'>
+<rect width='100%' height='100%' fill='white'/>
+<line x1='90.00' y1='70.00' x2='90.00' y2='420.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='90.00' y='436.00' text-anchor='middle' font-size='10' fill='#666' font-family='Arial,sans-serif'>0</text>
+<line x1='220.00' y1='70.00' x2='220.00' y2='420.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='220.00' y='436.00' text-anchor='middle' font-size='10' fill='#666' font-family='Arial,sans-serif'>1</text>
+<line x1='350.00' y1='70.00' x2='350.00' y2='420.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='350.00' y='436.00' text-anchor='middle' font-size='10' fill='#666' font-family='Arial,sans-serif'>1</text>
+<line x1='480.00' y1='70.00' x2='480.00' y2='420.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='480.00' y='436.00' text-anchor='middle' font-size='10' fill='#666' font-family='Arial,sans-serif'>2</text>
+<line x1='610.00' y1='70.00' x2='610.00' y2='420.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='610.00' y='436.00' text-anchor='middle' font-size='10' fill='#666' font-family='Arial,sans-serif'>2</text>
+<line x1='740.00' y1='70.00' x2='740.00' y2='420.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='740.00' y='436.00' text-anchor='middle' font-size='10' fill='#666' font-family='Arial,sans-serif'>3</text>
+<line x1='90.00' y1='420.00' x2='740.00' y2='420.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='424.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>1159743</text>
+<line x1='90.00' y1='350.00' x2='740.00' y2='350.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='354.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>1264132</text>
+<line x1='90.00' y1='280.00' x2='740.00' y2='280.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='284.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>1368521</text>
+<line x1='90.00' y1='210.00' x2='740.00' y2='210.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='214.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>1472910</text>
+<line x1='90.00' y1='140.00' x2='740.00' y2='140.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='144.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>1577299</text>
+<line x1='90.00' y1='70.00' x2='740.00' y2='70.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='74.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>1681688</text>
+<line x1='90.00' y1='70.00' x2='90.00' y2='420.00' stroke='#888' stroke-width='1.50'/>
+<line x1='90.00' y1='420.00' x2='740.00' y2='420.00' stroke='#888' stroke-width='1.50'/>
+<polyline points='306.67,150.04 523.33,402.12 740.00,406.61 ' fill='none' stroke='#e63946' stroke-width='2.00'/>
+<polyline points='306.67,148.21 523.33,403.15 740.00,410.54 ' fill='none' stroke='#f4a261' stroke-width='2.00'/>
+<polyline points='306.67,139.65 523.33,394.11 740.00,379.00 ' fill='none' stroke='#2a9d8f' stroke-width='2.00'/>
+<polyline points='306.67,95.23 523.33,384.97 740.00,392.21 ' fill='none' stroke='#8ecae6' stroke-width='2.00'/>
+<text x='415.00' y='40.00' text-anchor='middle' font-size='14' fill='#222' font-family='Arial,sans-serif'>Best result per algorithm vs instance size</text>
+<text x='415.00' y='462.00' text-anchor='middle' font-size='11' fill='#555' font-family='Arial,sans-serif'>Instance (1=cap41, 2=cap81, 3=cap111)</text>
+<text x='25.00' y='245.00' text-anchor='middle' font-size='11' fill='#555' font-family='Arial,sans-serif' transform='rotate(-90.00,25.00,245.00)'>Best objective value</text>
+<line x1='755.00' y1='97.00' x2='775.00' y2='97.00' stroke='#e63946' stroke-width='2.50'/>
+<text x='780.00' y='101.00' text-anchor='start' font-size='10' fill='#444' font-family='Arial,sans-serif'>EA</text>
+<line x1='755.00' y1='119.00' x2='775.00' y2='119.00' stroke='#f4a261' stroke-width='2.50'/>
+<text x='780.00' y='123.00' text-anchor='start' font-size='10' fill='#444' font-family='Arial,sans-serif'>SA</text>
+<line x1='755.00' y1='141.00' x2='775.00' y2='141.00' stroke='#2a9d8f' stroke-width='2.50'/>
+<text x='780.00' y='145.00' text-anchor='start' font-size='10' fill='#444' font-family='Arial,sans-serif'>VNS</text>
+<line x1='755.00' y1='163.00' x2='775.00' y2='163.00' stroke='#8ecae6' stroke-width='2.50'/>
+<text x='780.00' y='167.00' text-anchor='start' font-size='10' fill='#444' font-family='Arial,sans-serif'>GRASP</text>
+</svg>

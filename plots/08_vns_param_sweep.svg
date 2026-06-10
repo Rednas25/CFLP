@@ -1,0 +1,45 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns='http://www.w3.org/2000/svg' width='900' height='500'>
+<rect width='100%' height='100%' fill='white'/>
+<line x1='90.00' y1='420.00' x2='860.00' y2='420.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='424.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>0</text>
+<line x1='90.00' y1='350.00' x2='860.00' y2='350.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='354.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>371969</text>
+<line x1='90.00' y1='280.00' x2='860.00' y2='280.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='284.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>743938</text>
+<line x1='90.00' y1='210.00' x2='860.00' y2='210.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='214.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>1115907</text>
+<line x1='90.00' y1='140.00' x2='860.00' y2='140.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='144.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>1487876</text>
+<line x1='90.00' y1='70.00' x2='860.00' y2='70.00' stroke='#e0e0e0' stroke-width='1.00' stroke-dasharray='4,3'/>
+<text x='84.00' y='74.00' text-anchor='end' font-size='10' fill='#666' font-family='Arial,sans-serif'>1859845</text>
+<line x1='90.00' y1='70.00' x2='90.00' y2='420.00' stroke='#888' stroke-width='1.50'/>
+<line x1='90.00' y1='420.00' x2='860.00' y2='420.00' stroke='#888' stroke-width='1.50'/>
+<rect x='105.50' y='123.07' width='38.50' height='296.93' fill='#e63946' rx='3'/>
+<rect x='146.00' y='117.03' width='38.50' height='302.97' fill='#e6394666' stroke='#e63946' stroke-width='1.50' rx='3'/>
+<text x='145.00' y='438.00' text-anchor='middle' font-size='9' fill='#333' font-family='Arial,sans-serif'>default</text>
+<rect x='215.50' y='119.89' width='38.50' height='300.11' fill='#f4a261' rx='3'/>
+<rect x='256.00' y='113.29' width='38.50' height='306.71' fill='#f4a26166' stroke='#f4a261' stroke-width='1.50' rx='3'/>
+<text x='255.00' y='438.00' text-anchor='middle' font-size='9' fill='#333' font-family='Arial,sans-serif'>iter20</text>
+<rect x='325.50' y='124.31' width='38.50' height='295.69' fill='#2a9d8f' rx='3'/>
+<rect x='366.00' y='121.61' width='38.50' height='298.39' fill='#2a9d8f66' stroke='#2a9d8f' stroke-width='1.50' rx='3'/>
+<text x='365.00' y='438.00' text-anchor='middle' font-size='9' fill='#333' font-family='Arial,sans-serif'>iter100</text>
+<rect x='435.50' y='122.79' width='38.50' height='297.21' fill='#8ecae6' rx='3'/>
+<rect x='476.00' y='118.61' width='38.50' height='301.39' fill='#8ecae666' stroke='#8ecae6' stroke-width='1.50' rx='3'/>
+<text x='475.00' y='438.00' text-anchor='middle' font-size='9' fill='#333' font-family='Arial,sans-serif'>shake3</text>
+<rect x='545.50' y='123.23' width='38.50' height='296.77' fill='#a8dadc' rx='3'/>
+<rect x='586.00' y='117.00' width='38.50' height='303.00' fill='#a8dadc66' stroke='#a8dadc' stroke-width='1.50' rx='3'/>
+<text x='585.00' y='438.00' text-anchor='middle' font-size='9' fill='#333' font-family='Arial,sans-serif'>shake8</text>
+<rect x='655.50' y='118.46' width='38.50' height='301.54' fill='#457b9d' rx='3'/>
+<rect x='696.00' y='107.50' width='38.50' height='312.50' fill='#457b9d66' stroke='#457b9d' stroke-width='1.50' rx='3'/>
+<text x='695.00' y='438.00' text-anchor='middle' font-size='9' fill='#333' font-family='Arial,sans-serif'>ls30</text>
+<rect x='765.50' y='125.31' width='38.50' height='294.69' fill='#264653' rx='3'/>
+<rect x='806.00' y='121.71' width='38.50' height='298.29' fill='#26465366' stroke='#264653' stroke-width='1.50' rx='3'/>
+<text x='805.00' y='438.00' text-anchor='middle' font-size='9' fill='#333' font-family='Arial,sans-serif'>ls120</text>
+<text x='475.00' y='40.00' text-anchor='middle' font-size='14' fill='#222' font-family='Arial,sans-serif'>VNS Parameter Sweep - cap41_ss</text>
+<text x='25.00' y='245.00' text-anchor='middle' font-size='11' fill='#555' font-family='Arial,sans-serif' transform='rotate(-90.00,25.00,245.00)'>Objective value</text>
+<rect x='710.00' y='82.00' width='14.00' height='12.00' fill='#888' rx='3'/>
+<text x='728.00' y='93.00' text-anchor='start' font-size='10' fill='#555' font-family='Arial,sans-serif'>best</text>
+<rect x='710.00' y='102.00' width='14.00' height='12.00' fill='#88888844' stroke='#888' stroke-width='1.50' rx='3'/>
+<text x='728.00' y='113.00' text-anchor='start' font-size='10' fill='#555' font-family='Arial,sans-serif'>avg</text>
+</svg>

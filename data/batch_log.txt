@@ -1,0 +1,76 @@
+
+=== 1. BASELINE (all algorithms x 3 instances) ===
+
+Instance: cap41_ss
+  random [default]  best=2.19235e+06  avg=3492850.9  (0s)
+  greedy [default]  best=1684845.6  avg=1684845.6  (0s)
+  EA [default]  best=1562333.6  avg=1578797.9  (0s)
+  SA [default]  best=1565047.8  avg=1578259.4  (0s)
+  VNS [default]  best=1577815.3  avg=1609917.8  (0s)
+  GRASP [default]  best=1644066.8  avg=1665535.8  (0s)
+
+Instance: cap81_ss
+  random [default]  best=2035883.5  avg=3839178.0  (0s)
+  greedy [default]  best=1256212.4  avg=1256212.4  (0s)
+  EA [default]  best=1186398.2  avg=1190522.1  (0s)
+  SA [default]  best=1184874.2  avg=1190702.9  (0s)
+  VNS [default]  best=1198349.6  avg=1217741.9  (0s)
+  GRASP [default]  best=1211981.1  avg=1232598.2  (0s)
+
+Instance: cap111_ss
+  random [default]  best=2465973.0  avg=4215693.7  (0s)
+  greedy [default]  best=1221731.4  avg=1221731.4  (0s)
+  EA [default]  best=1179711.8  avg=1192029.5  (0s)
+  SA [default]  best=1173847.8  avg=1188289.5  (0s)
+  VNS [default]  best=1220883.5  avg=1244868.3  (0s)
+  GRASP [default]  best=1201186.9  avg=1220100.5  (0s)
+
+=== 2. EA PARAMETER SWEEP (cap41_ss) ===
+  EA [pop20]  best=1569458.8  avg=1612015.2  (0s)
+  EA [pop80]  best=1565828.1  avg=1571323.1  (0s)
+  EA [gen100]  best=1573615.0  avg=1604159.4  (0s)
+  EA [gen500]  best=1562094.0  avg=1571241.6  (0s)
+  EA [pm050]  best=1567957.9  avg=1585409.4  (0s)
+  EA [pm070]  best=1567368.5  avg=1588915.8  (0s)
+  EA [tour3]  best=1575966.4  avg=1590089.9  (0s)
+  EA [tour10]  best=1566426.7  avg=1593883.8  (0s)
+
+=== 3. SA PARAMETER SWEEP (cap41_ss) ===
+  SA [t0_50k]  best=1562714.6  avg=1585511.5  (0s)
+  SA [t0_500k]  best=1562561.3  avg=1572754.6  (0s)
+  SA [cool990]  best=1565892.7  avg=1596522.0  (0s)
+  SA [cool999]  best=1559753.9  avg=1563832.7  (1s)
+  SA [iter2]  best=1575669.9  avg=1608455.7  (0s)
+  SA [iter10]  best=1560589.2  avg=1567135.5  (0s)
+
+=== 4. VNS PARAMETER SWEEP (cap41_ss) ===
+  VNS [iter20]  best=1594726.1  avg=1629814.0  (0s)
+  VNS [iter100]  best=1571262.9  avg=1585622.9  (0s)
+  VNS [shake3]  best=1579342.5  avg=1601545.2  (0s)
+  VNS [shake8]  best=1577001.5  avg=1610091.7  (0s)
+  VNS [ls30]  best=1602338.6  avg=1660576.2  (0s)
+  VNS [ls120]  best=1565950.3  avg=1585064.3  (0s)
+
+=== 5. GRASP PARAMETER SWEEP (cap41_ss) ===
+  GRASP [iter50]  best=1660265.6  avg=1676490.8  (0s)
+  GRASP [iter200]  best=1638086.1  avg=1653350.9  (0s)
+  GRASP [rcl1]  best=1633243.1  avg=1641912.6  (0s)
+  GRASP [rcl4]  best=1711008.3  avg=1743563.4  (0s)
+  GRASP [ls50]  best=1631987.8  avg=1668272.2  (0s)
+  GRASP [ls200]  best=1612811.0  avg=1635030.9  (0s)
+
+=== BATCH COMPLETE ===
+Wyniki: data\batch_summary.csv
+Generating SVG plots...
+  01_baseline_comparison.svg
+  02_ea_convergence.svg
+  03_sa_convergence.svg
+  04_vns_convergence.svg
+  05_grasp_convergence.svg
+  06_ea_param_sweep.svg
+  07_sa_param_sweep.svg
+  08_vns_param_sweep.svg
+  09_grasp_param_sweep.svg
+  10_convergence_all_algorithms.svg
+  11_scalability.svg
+Done. Plots saved to: "plots"
