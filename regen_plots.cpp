@@ -1,4 +1,7 @@
-// regen_plots.cpp — budget bar charts matching plots/*_param_sweep.svg style exactly
+// regen_plots.cpp — plots for data2/ budget experiments
+// Ranked bar charts: 100 configs sorted by avg (best highlighted).
+// Per-parameter line charts: sorted by param value, avg + best lines.
+// Style matches plots/ folder exactly.
 // Compile: g++ -O2 -std=c++17 -static -static-libgcc -static-libstdc++ regen_plots.cpp -o regen_plots.exe
 
 #include <algorithm>
@@ -9,15 +12,13 @@
 #include <numeric>
 #include <sstream>
 #include <string>
-#include <tuple>
 #include <vector>
 
 namespace fs = std::filesystem;
-const fs::path PROJECT_DIR = fs::path(__FILE__).parent_path();
-const fs::path DATA2  = PROJECT_DIR / "data2";
-const fs::path PLOTS  = DATA2 / "plots";
+const fs::path DATA2  = "data2";
+const fs::path PLOTS  = fs::path("data2") / "plots";
 
-// ── Svg — identical to plot_results.cpp ──────────────────────────────────────
+// ── Svg ───────────────────────────────────────────────────────────────────────
 
 class Svg {
     int W, H;
@@ -32,7 +33,7 @@ public:
     void rect(double x, double y, double w, double h,
               const std::string& fill, const std::string& stk = "none", double sw = 1) {
         buf << "<rect x='" << f2(x) << "' y='" << f2(y)
-            << "' width='" << f2(std::max(w,0.5)) << "' height='" << f2(std::max(h,0.0))
+            << "' width='" << f2(std::max(w, 1.0)) << "' height='" << f2(std::max(h, 0.0))
             << "' fill='" << fill << "'";
         if (stk != "none") buf << " stroke='" << stk << "' stroke-width='" << f2(sw) << "'";
         buf << " rx='3'/>\n";
@@ -54,6 +55,13 @@ public:
         if (rot != 0) buf << " transform='rotate(" << f2(rot) << "," << f2(x) << "," << f2(y) << ")'";
         buf << ">" << s << "</text>\n";
     }
+    void polyline(const std::vector<std::pair<double,double>>& pts,
+                  const std::string& col, double sw = 2) {
+        if (pts.empty()) return;
+        buf << "<polyline points='";
+        for (auto& [x,y] : pts) buf << f2(x) << "," << f2(y) << " ";
+        buf << "' fill='none' stroke='" << col << "' stroke-width='" << f2(sw) << "'/>\n";
+    }
     void save(const fs::path& p) {
         std::ofstream f(p);
         f << "<?xml version='1.0' encoding='UTF-8'?>\n"
@@ -63,14 +71,7 @@ public:
     }
 };
 
-// ── colour palette — same as plot_results.cpp ─────────────────────────────────
-
-const std::vector<std::string> COL = {
-    "#e63946","#f4a261","#2a9d8f","#8ecae6","#a8dadc",
-    "#457b9d","#264653","#e9c46a","#e76f51","#023047"
-};
-
-// ── CSV reader ────────────────────────────────────────────────────────────────
+// ── CSV ───────────────────────────────────────────────────────────────────────
 
 struct Row { std::vector<std::string> cols; };
 std::vector<Row> read_rows(const fs::path& p) {
@@ -86,160 +87,237 @@ std::vector<Row> read_rows(const fs::path& p) {
 }
 double dcol(const Row& r, int i) { try { return std::stod(r.cols.at(i)); } catch(...) { return 0; } }
 
-// ── format a parameter value as a short label ─────────────────────────────────
+// ── ranked bar chart (style: tuning_*_ranked.svg) ─────────────────────────────
+// Bars sorted ascending by avg. Rank-1 bar (best avg) highlighted red.
 
-std::string fmt_param(double v) {
-    std::ostringstream s;
-    if      (v >= 100000) { s << std::fixed << std::setprecision(0) << v/1000 << "k"; }
-    else if (v >= 1000)   { s << std::fixed << std::setprecision(0) << v; }
-    else if (v >= 10)     { s << std::fixed << std::setprecision(0) << v; }
-    else if (v >= 1)      { s << std::fixed << std::setprecision(1) << v; }
-    else                  { s << std::fixed << std::setprecision(3) << v; }
-    return s.str();
-}
-
-// ── grouped bar chart — identical style to plots/*_param_sweep.svg ────────────
-// Configs sorted by best value, top_n shown. Each group: solid bar (best) +
-// transparent+border bar (avg). Legend uses rect icons like original.
-
-void budget_bar_chart(const fs::path& out,
-                      const std::string& title,
-                      const std::string& param_name,
-                      std::vector<std::tuple<double,double,double>> configs, // {param_val, best, avg}
-                      const std::string& bar_col,
-                      int top_n = 30)
+void ranked_chart(const fs::path& out,
+                  const std::string& algo,
+                  const std::vector<Row>& rows,
+                  int avg_col, int best_col)
 {
-    if (configs.empty()) return;
+    if (rows.empty()) return;
+    std::string A = algo; for (auto& c : A) c = std::toupper(c);
 
-    // sort by best (ascending)
-    std::sort(configs.begin(), configs.end(), [](const auto& a, const auto& b){
-        return std::get<1>(a) < std::get<1>(b);
-    });
-    if ((int)configs.size() > top_n) configs.resize(top_n);
-    int N = (int)configs.size();
+    // build (avg, best) and sort ascending by avg
+    std::vector<std::pair<double,double>> ranked;
+    for (auto& r : rows) ranked.push_back({dcol(r, avg_col), dcol(r, best_col)});
+    std::sort(ranked.begin(), ranked.end());
 
-    // exact same dimensions as param_sweep charts
-    const int    W  = 900, H  = 500;
-    const double ML = 90,  MR = 50,  MT = 70, MB = 80;
-    const double pw = W - ML - MR;   // 760
-    const double ph = H - MT - MB;   // 350
-    const double x0 = ML, x1 = ML + pw, y0 = MT, y1 = MT + ph;
+    const int    W  = 1000, H  = 460;
+    const double ML = 90, MR = 40, MT = 70, MB = 70;
+    const double pw = W - ML - MR, ph = H - MT - MB;
 
-    // Y from 0 to max*1.05 (like original, bars start from bottom)
-    double ymax = 0;
-    for (auto& [p,b,a] : configs) ymax = std::max({ymax, b, a});
-    ymax *= 1.05;
-    if (ymax < 1) ymax = 1;
-
-    auto py = [&](double v) { return y0 + ph * (1.0 - v / ymax); };
-
-    // bar geometry
-    double slot_w  = pw / N;
-    double bar_w   = slot_w * 0.40;
-    double pair_gap = slot_w * 0.04;
+    double vmax = ranked.back().first  * 1.05;
+    double vmin = ranked.front().first * 0.98;
+    double vr   = vmax - vmin;
 
     Svg svg(W, H);
 
-    // horizontal grid only (like original param_sweep)
+    // horizontal gridlines
     for (int i = 0; i <= 5; ++i) {
-        double v = ymax * i / 5;
-        double yp = py(v);
-        svg.line(x0, yp, x1, yp, "#e0e0e0", 1, "4,3");
+        double v = vmin + vr * i / 5;
+        double y = MT + ph - ((v - vmin) / vr) * ph;
+        svg.line(ML, y, ML + pw, y, "#e0e0e0", 1, "4,3");
         std::ostringstream s; s << std::fixed << std::setprecision(0) << v;
-        svg.text(x0 - 6, yp + 4, s.str(), "end", 10, "#666");
+        svg.text(ML - 6, y + 4, s.str(), "end", 10, "#666");
+    }
+    svg.line(ML, MT,      ML,      MT + ph, "#888", 1.5);
+    svg.line(ML, MT + ph, ML + pw, MT + ph, "#888", 1.5);
+
+    int n = (int)ranked.size();
+    double bw = pw / n;
+    for (int i = 0; i < n; ++i) {
+        double v  = ranked[i].first;
+        double bh = ((v - vmin) / vr) * ph;
+        double bx = ML + i * bw;
+        svg.rect(bx, MT + ph - bh, bw - 1, bh, (i == 0) ? "#e63946" : "#b0c4de");
     }
 
-    // axes
-    svg.line(x0, y0, x0, y1, "#888", 1.5);
-    svg.line(x0, y1, x1, y1, "#888", 1.5);
+    // annotate best value above rank-1 bar
+    double best_v = ranked[0].first;
+    double best_y = MT + ph - ((best_v - vmin) / vr) * ph;
+    std::ostringstream ann; ann << std::fixed << std::setprecision(0) << best_v;
+    svg.text(ML + bw / 2, best_y - 6, ann.str(), "middle", 10, "#e63946");
 
-    // bars
-    for (int i = 0; i < N; ++i) {
-        auto& [pv, bv, av] = configs[i];
-        double cx  = x0 + (i + 0.5) * slot_w;
-        double bx  = cx - pair_gap/2 - bar_w;  // best bar (left)
-        double ax  = cx + pair_gap/2;           // avg bar (right)
-
-        // best — solid
-        svg.rect(bx, py(bv), bar_w, y1 - py(bv), bar_col);
-        // avg — transparent fill + border (like #e6394666 in original)
-        svg.rect(ax, py(av), bar_w, y1 - py(av), bar_col + "66", bar_col, 1.5);
-
-        // x label: param value, rotated -45°, centered on group
-        svg.text(cx, y1 + 10, fmt_param(pv), "end", 8, "#555", -45);
-    }
-
-    // title and axis labels — same positions as original
-    svg.text(x0 + pw/2, MT - 30, title, "middle", 14, "#222");
-    svg.text(25,         y0 + ph/2, "Objective value", "middle", 11, "#555", -90);
-    svg.text(x0 + pw/2,  H - 5,
-             param_name + "  (top " + std::to_string(N) + " configs, sorted by best)",
-             "middle", 10, "#555");
-
-    // legend — solid rect + transparent rect, like original (at right of chart)
-    svg.rect(x1 - 80, y0 + 12, 14, 12, "#888");
-    svg.text(x1 - 63,  y0 + 23, "best", "start", 10, "#555");
-    svg.rect(x1 - 80, y0 + 32, 14, 12, "#88888844", "#888", 1.5);
-    svg.text(x1 - 63,  y0 + 43, "avg",  "start", 10, "#555");
+    svg.text(ML + pw / 2, MT - 30,
+             A + " – 100 configs ranked by avg (budget=100k, cap41_ss)",
+             "middle", 14, "#222");
+    svg.text(ML + pw / 2, MT + ph + 40, "Rank (best → worst)", "middle", 11, "#555");
+    svg.text(ML - 65, MT + ph / 2, "Avg objective value", "middle", 11, "#555", -90);
 
     svg.save(out);
 }
 
-// ── generate bar charts for one CSV ───────────────────────────────────────────
+// ── per-parameter line chart (style: plot_results::line_chart) ─────────────────
+// X = parameter value (sorted), two lines: avg (algorithm color) + best (red).
+// Y zoomed to actual data range. Clips outliers above 90th-pct of avg.
 
-void gen_charts(const fs::path& csv,
+void param_chart(const fs::path& out,
+                 const std::string& title,
+                 const std::string& xlabel,
+                 std::vector<std::pair<double,double>> avg_pts,
+                 std::vector<std::pair<double,double>> best_pts,
+                 const std::string& avg_col,
+                 const std::string& best_col = "#e63946")
+{
+    if (avg_pts.empty()) return;
+
+    const int    W  = 900, H  = 480;
+    const double ML = 90, MR = 160, MT = 70, MB = 60;
+    const double pw = W - ML - MR;
+    const double ph = H - MT - MB;
+    const double x0 = ML, x1 = ML + pw, y0 = MT, y1 = MT + ph;
+
+    // sort by parameter value
+    std::vector<int> idx(avg_pts.size()); std::iota(idx.begin(), idx.end(), 0);
+    std::sort(idx.begin(), idx.end(), [&](int a, int b){
+        return avg_pts[a].first < avg_pts[b].first;
+    });
+
+    // X range
+    double xmin = avg_pts[idx.front()].first, xmax = avg_pts[idx.back()].first;
+    double xr = xmax - xmin; if (xr < 1e-9) xr = 1;
+    xmin -= xr*0.02; xmax += xr*0.02; xr = xmax - xmin;
+
+    // Y range: clip above 90th-pct of avg to suppress outliers
+    std::vector<double> all_avg; for (auto& [x,y] : avg_pts) all_avg.push_back(y);
+    std::sort(all_avg.begin(), all_avg.end());
+    double y_ceil = all_avg[(int)(all_avg.size() * 0.90)];
+
+    double y_floor = best_pts[0].second;
+    for (auto& [x,y] : best_pts) y_floor = std::min(y_floor, y);
+
+    int clipped = 0;
+    for (auto v : all_avg) if (v > y_ceil) ++clipped;
+
+    double yr = y_ceil - y_floor; if (yr < 1) yr = 1;
+    double ymin = y_floor - yr * 0.05;
+    double ymax = y_ceil  + yr * 0.10;
+    yr = ymax - ymin;
+
+    auto px  = [&](double x) { return x0 + (x - xmin) / xr * pw; };
+    auto pyc = [&](double y) { return std::max(y0, std::min(y1, y0 + ph - (y-ymin)/yr*ph)); };
+
+    Svg svg(W, H);
+
+    // vertical grid
+    for (int i = 0; i <= 5; ++i) {
+        double xv = xmin + xr*i/5, xp = px(xv);
+        svg.line(xp, y0, xp, y1, "#e0e0e0", 1, "4,3");
+        std::ostringstream s;
+        if      (xr > 5000) s << std::fixed << std::setprecision(0) << xv;
+        else if (xr > 1)    s << std::fixed << std::setprecision(2) << xv;
+        else                s << std::fixed << std::setprecision(4) << xv;
+        svg.text(xp, y1 + 16, s.str(), "middle", 10, "#666");
+    }
+    // horizontal grid
+    for (int i = 0; i <= 5; ++i) {
+        double yv = ymin + yr*i/5, yp = pyc(yv);
+        svg.line(x0, yp, x1, yp, "#e0e0e0", 1, "4,3");
+        std::ostringstream s; s << std::fixed << std::setprecision(0) << yv;
+        svg.text(x0 - 6, yp + 4, s.str(), "end", 10, "#666");
+    }
+    svg.line(x0, y0, x0, y1, "#888", 1.5);
+    svg.line(x0, y1, x1, y1, "#888", 1.5);
+
+    // avg polyline
+    {
+        std::vector<std::pair<double,double>> pts;
+        for (int i : idx) pts.push_back({px(avg_pts[i].first), pyc(avg_pts[i].second)});
+        svg.polyline(pts, avg_col, 2.0);
+    }
+    // best polyline
+    {
+        std::vector<std::pair<double,double>> pts;
+        for (int i : idx) pts.push_back({px(best_pts[i].first), pyc(best_pts[i].second)});
+        svg.polyline(pts, best_col, 2.0);
+    }
+
+    // legend in right margin (style: plot_results::line_chart)
+    double lx = x1 + 15, ly = y0 + 20;
+    svg.line(lx,      ly + 7,  lx + 20, ly + 7,  best_col, 2.5);
+    svg.text(lx + 25, ly + 11, "best",          "start", 10, "#444");
+    svg.line(lx,      ly + 29, lx + 20, ly + 29, avg_col,  2.5);
+    svg.text(lx + 25, ly + 33, "avg (10 runs)", "start", 10, "#444");
+
+    svg.text(x0 + pw/2, MT - 30, title,              "middle", 14, "#222");
+    svg.text(x0 + pw/2, MT + ph + 42, xlabel,        "middle", 11, "#555");
+    svg.text(ML - 65,   y0 + ph/2, "Avg objective value", "middle", 11, "#555", -90);
+
+    if (clipped > 0) {
+        std::ostringstream s; s << clipped << " outlier(s) not shown";
+        svg.text(x1 - 2, y0 + 14, s.str(), "end", 9, "#aaa");
+    }
+
+    svg.save(out);
+}
+
+// ── generate per-parameter charts for one CSV ─────────────────────────────────
+
+void gen_params(const fs::path& csv,
                 const std::string& algo,
-                const std::vector<std::pair<int,std::string>>& param_cols,
+                const std::vector<std::pair<int,std::string>>& params,
                 int avg_col, int best_col,
-                const std::string& bar_color)
+                const std::string& avg_color)
 {
     auto rows = read_rows(csv);
-    if (rows.empty()) { std::cout << "  (no data: " << csv.filename() << ")\n"; return; }
-
+    if (rows.empty()) return;
     std::string A = algo; for (auto& c : A) c = std::toupper(c);
 
-    for (auto& [ci, name] : param_cols) {
-        std::vector<std::tuple<double,double,double>> configs;
-        for (auto& r : rows)
-            configs.emplace_back(dcol(r,ci), dcol(r,best_col), dcol(r,avg_col));
-
-        budget_bar_chart(
-            PLOTS / (algo + "_" + name + "_top30.svg"),
-            A + " Parameter Budget Sweep - cap41_ss",
-            name, configs, bar_color);
+    for (auto& [ci, name] : params) {
+        std::vector<std::pair<double,double>> avg_pts, best_pts;
+        for (auto& r : rows) {
+            avg_pts .push_back({dcol(r,ci), dcol(r,avg_col)});
+            best_pts.push_back({dcol(r,ci), dcol(r,best_col)});
+        }
+        param_chart(PLOTS / (algo + "_" + name + ".svg"),
+                    A + ": " + name + " (budget=100k, cap41_ss)",
+                    name, avg_pts, best_pts, avg_color);
     }
 }
 
 int main() {
     fs::create_directories(PLOTS);
 
-    // EA: 0=config_id,1=pop,2=gen_actual,3=tour,4=pm,5=px,6=bias,7=eval_budget,
-    //     8=runs,9=best,10=avg,11=std,12=time_ms
+    // EA: col1=pop, 2=gen_actual, 3=tour, 4=pm, 5=px | best=9, avg=10
     std::cout << "EA:\n";
-    gen_charts(DATA2/"ea_budget.csv", "ea",
-        {{1,"pop"},{2,"gen_actual"},{3,"tour"},{4,"pm"},{5,"px"}},
-        10, 9, COL[0]);
+    {
+        auto rows = read_rows(DATA2 / "ea_budget.csv");
+        ranked_chart(PLOTS / "ea_ranked.svg", "ea", rows, 10, 9);
+    }
+    gen_params(DATA2/"ea_budget.csv", "ea",
+               {{1,"pop"},{2,"gen_actual"},{3,"tour"},{4,"pm"},{5,"px"}},
+               10, 9, "#f4a261");
 
-    // SA: 0=config_id,1=T0,2=cool,3=min_T,4=ipt,5=eval_budget,
-    //     6=runs,7=best,8=avg,9=std,10=time_ms
+    // SA: col1=T0, 2=cool, 4=ipt | best=7, avg=8
     std::cout << "SA:\n";
-    gen_charts(DATA2/"sa_budget.csv", "sa",
-        {{1,"T0"},{2,"cool"},{4,"ipt"}},
-        8, 7, COL[1]);
+    {
+        auto rows = read_rows(DATA2 / "sa_budget.csv");
+        ranked_chart(PLOTS / "sa_ranked.svg", "sa", rows, 8, 7);
+    }
+    gen_params(DATA2/"sa_budget.csv", "sa",
+               {{1,"T0"},{2,"cool"},{4,"ipt"}},
+               8, 7, "#e9c46a");
 
-    // VNS: 0=config_id,1=iter,2=shake,3=ls_actual,4=eval_budget_approx,
-    //      5=runs,6=best,7=avg,8=std,9=time_ms
+    // VNS: col1=iter, 2=shake, 3=ls_actual | best=6, avg=7
     std::cout << "VNS:\n";
-    gen_charts(DATA2/"vns_budget.csv", "vns",
-        {{1,"iter"},{2,"shake"},{3,"ls_actual"}},
-        7, 6, COL[2]);
+    {
+        auto rows = read_rows(DATA2 / "vns_budget.csv");
+        ranked_chart(PLOTS / "vns_ranked.svg", "vns", rows, 7, 6);
+    }
+    gen_params(DATA2/"vns_budget.csv", "vns",
+               {{1,"iter"},{2,"shake"},{3,"ls_actual"}},
+               7, 6, "#2a9d8f");
 
-    // GRASP: 0=config_id,1=iter,2=rcl,3=ls_actual,4=eval_budget_approx,
-    //        5=runs,6=best,7=avg,8=std,9=time_ms
+    // GRASP: col1=iter, 2=rcl, 3=ls_actual | best=6, avg=7
     std::cout << "GRASP:\n";
-    gen_charts(DATA2/"grasp_budget.csv", "grasp",
-        {{1,"iter"},{2,"rcl"},{3,"ls_actual"}},
-        7, 6, COL[4]);
+    {
+        auto rows = read_rows(DATA2 / "grasp_budget.csv");
+        ranked_chart(PLOTS / "grasp_ranked.svg", "grasp", rows, 7, 6);
+    }
+    gen_params(DATA2/"grasp_budget.csv", "grasp",
+               {{1,"iter"},{2,"rcl"},{3,"ls_actual"}},
+               7, 6, "#8ecae6");
 
     std::cout << "Done. " << PLOTS.string() << "\n";
 }
