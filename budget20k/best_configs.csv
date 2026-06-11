@@ -1,0 +1,5 @@
+method,config,global_avg_best,global_avg_std
+EA,"pop=80;gen=250;tour=7;pm=0.90;pc=0.85;bias=0.50",1.314e+06,3987.87
+SA,"t0=180000;cool=0.997;tmin=8;iter=7",1.30961e+06,5259.42
+VNS,"iter=50;shake=10;ls=400",1.31669e+06,6121.30
+GRASP,"iter=40;rcl=2;ls=480",1.34556e+06,10593.7
