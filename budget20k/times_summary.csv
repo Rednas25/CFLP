@@ -1,0 +1,13 @@
+method,instance,runs,total_time_ms,avg_time_ms,config
+EA,cap41_ss,10,322,32.200,"pop=80;gen=250;tour=7;pm=0.90;pc=0.85;bias=0.50"
+EA,cap81_ss,10,310,31.000,"pop=80;gen=250;tour=7;pm=0.90;pc=0.85;bias=0.50"
+EA,cap111_ss,10,326,32.600,"pop=80;gen=250;tour=7;pm=0.90;pc=0.85;bias=0.50"
+SA,cap41_ss,10,124,12.400,"t0=180000;cool=0.997;tmin=8;iter=7"
+SA,cap81_ss,10,128,12.800,"t0=180000;cool=0.997;tmin=8;iter=7"
+SA,cap111_ss,10,159,15.900,"t0=180000;cool=0.997;tmin=8;iter=7"
+VNS,cap41_ss,10,242,24.200,"iter=50;shake=10;ls=400"
+VNS,cap81_ss,10,212,21.200,"iter=50;shake=10;ls=400"
+VNS,cap111_ss,10,226,22.600,"iter=50;shake=10;ls=400"
+GRASP,cap41_ss,10,70,7.000,"iter=40;rcl=2;ls=480"
+GRASP,cap81_ss,10,65,6.500,"iter=40;rcl=2;ls=480"
+GRASP,cap111_ss,10,80,8.000,"iter=40;rcl=2;ls=480"
