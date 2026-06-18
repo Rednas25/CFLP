@@ -66,7 +66,6 @@ struct GRASPConfig {
 };
 
 
-
 struct Problem {
     int facilities = 0;
     int customers = 0;
@@ -321,7 +320,7 @@ int main(int argc, char* argv[]) {
                     has_best_solution = true;
                 }
 
-                print_solution("Najlepsze rozwiazanie SA:", best);
+                print_solution("Najlepsze rozwazanie SA:", best);
                 std::cout << '\n';
             }
 
@@ -380,7 +379,6 @@ int main(int argc, char* argv[]) {
                     best_overall = best;
                     has_best_solution = true;
                 }
-
                 print_solution("Najlepsze rozwiazanie VNS:", best);
                 std::cout << '\n';
             }
@@ -503,7 +501,6 @@ Problem load_problem(const std::string& path) {
 std::string name_from_path(const std::string& path) {
     std::size_t slash_pos = path.find_last_of("/\\");
     std::string file_name = (slash_pos == std::string::npos) ? path : path.substr(slash_pos + 1);
-
     std::size_t dot_pos = file_name.find_last_of('.');
     return file_name.substr(0, dot_pos);
 }
@@ -662,15 +659,9 @@ void print_stats(const std::string& name, const Stats& stats) {
     std::cout << "std:   " << stats.std << '\n';
 }
 
-void summary_row(
-    const std::string& csv_path,
-    const std::string& instance_name,
-    const std::string& method_name,
-    int runs,
-    double best,
-    std::optional<double> worst,
-    std::optional<double> avg,
-    std::optional<double> std,
+void summary_row(const std::string& csv_path, const std::string& instance_name, const std::string& method_name,
+    int runs, double best,
+    std::optional<double> worst, std::optional<double> avg, std::optional<double> std,
     long long time_ms
 ) {
     bool write_header = false;
@@ -733,7 +724,6 @@ void create_ea_csv(const std::string& csv_path) {
     if (!output) {
         throw std::runtime_error("Nie udalo sie utworzyc pliku csv: " + csv_path);
     }
-
     output << "generation,best,avg,worst,std\n";
 }
 
@@ -899,7 +889,6 @@ Solution random_solution(const Problem& problem, std::mt19937& rng) {
 Solution greedy_solution(const Problem& problem) {
     Solution solution;
     solution.customer_assignment.assign(problem.customers, -1);
-
     std::vector<int> remaining_capacity = problem.capacities;
     std::vector<bool> facility_open(problem.facilities, false);
     std::vector<int> customer_order(problem.customers);
@@ -941,7 +930,6 @@ Solution greedy_solution(const Problem& problem) {
         remaining_capacity[best_facility] -= problem.demands[customer];
         facility_open[best_facility] = true;
     }
-
     update_solution_state(problem, solution);
     solution.objective_value = evaluate_solution(problem, solution);
     return solution;
@@ -954,7 +942,6 @@ std::vector<Solution> initialize_population(const Problem& problem, const EAConf
     while (static_cast<int>(population.size()) < config.pop_size) {
         population.push_back(random_solution(problem, rng));
     }
-
     return population;
 }
 
@@ -981,7 +968,6 @@ Solution evolutionary_algorithm(const Problem& problem, std::ofstream& csv_outpu
             best = solution;
         }
     }
-
     std::uniform_real_distribution<double> probability_draw(0.0, 1.0);
 
     for (int generation = 0; generation < config.gen; ++generation) {
@@ -993,8 +979,8 @@ Solution evolutionary_algorithm(const Problem& problem, std::ofstream& csv_outpu
                       << ", Avg: " << current_stats.avg
                       << ", Worst: " << current_stats.worst << '\n';
         }
-
         std::vector<Solution> next_population;
+
         next_population.reserve(config.pop_size);
 
         while (static_cast<int>(next_population.size()) < config.pop_size) {
@@ -1025,7 +1011,6 @@ Solution evolutionary_algorithm(const Problem& problem, std::ofstream& csv_outpu
                 best = child;
             }
         }
-
         population = next_population;
     }
 
@@ -1034,7 +1019,6 @@ Solution evolutionary_algorithm(const Problem& problem, std::ofstream& csv_outpu
 
 Solution sa_neighbor(const Problem& problem, const Solution& current, std::mt19937& rng) {
     Solution neighbor = current;
-
     std::uniform_int_distribution<int> customer_draw(0, problem.customers - 1);
     int customer = customer_draw(rng);
     mutate_customer(problem, neighbor, customer, rng);
@@ -1045,7 +1029,6 @@ Solution sa_neighbor(const Problem& problem, const Solution& current, std::mt199
 Solution simulated_annealing(const Problem& problem, std::ofstream& csv_output, const SAConfig& config, std::mt19937& rng) {
     Solution current = random_solution(problem, rng);
     Solution best = current;
-
     std::uniform_real_distribution<double> probability_draw(0.0, 1.0);
     double temperature = config.initial_temp;
     int iteration_number = 1;
@@ -1086,7 +1069,6 @@ Solution simulated_annealing(const Problem& problem, std::ofstream& csv_output, 
 
 bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& rng) {
     update_solution_state(problem, solution);
-
     const int max_repairs = problem.customers * problem.facilities;
 
     for (int step = 0; step < max_repairs; ++step) {
@@ -1117,7 +1099,6 @@ bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& r
         }
 
         std::shuffle(facility_customers.begin(), facility_customers.end(), rng);
-
         bool repaired_step = false;
 
         for (int customer : facility_customers) {
@@ -1256,15 +1237,9 @@ Solution crossover(
     return child;
 }
 
-Solution local_search_move_one(
-    const Problem& problem,
-    const Solution& start,
-    int max_attempts,
-    int neighborhood,
-    int& log_iteration,
-    double& best_value,
-    std::ofstream& csv_output,
-    std::mt19937& rng
+Solution local_search_move_one(const Problem& problem, const Solution& start,
+    int max_attempts, int neighborhood, int& log_iteration, double& best_value,
+    std::ofstream& csv_output, std::mt19937& rng
 ) {
     (void)neighborhood;
     (void)log_iteration;
@@ -1317,7 +1292,6 @@ Solution local_search_move_one(
                     break;
                 }
             }
-
             if (improved) {
                 break;
             }
