@@ -16,7 +16,7 @@
 const std::filesystem::path PROJECT_DIR = std::filesystem::path(__FILE__).parent_path();
 const std::string DEFAULT_INSTANCE_NAME = "cap41_ss.txt";
 
-const int RANDOM_RUNS = 10000;
+const int RANDOM_RUNS = 20000;
 const int EA_RUNS = 10;
 const int SA_RUNS = 10;
 const int VNS_RUNS = 10;
@@ -33,7 +33,7 @@ const bool EA_VERBOSE = false;
 const bool DETERMINISTIC_REPAIR_TARGET = true;
 
 struct EAConfig {
-    int pop_size = 40;
+    int pop_size = 80;
     int gen = 250;
     int tour_size = 7;
     double mutation_pro = 0.90;
@@ -43,21 +43,21 @@ struct EAConfig {
 
 struct SAConfig {
     double initial_temp = 180000.0;
-    double cooling_rate = 0.995;
+    double cooling_rate = 0.997;
     double min_temp = 8.0;
-    int iter_per_temp = 5;
+    int iter_per_temp = 7;
 };
 
 struct VNSConfig {
     int max_iterations = 50;
-    int shake_attempts_per_neighborhood = 5;
-    int local_search_attempts = 60;
+    int shake_attempts_per_neighborhood = 10;
+    int local_search_attempts = 400;
 };
 
 struct GRASPConfig {
-    int iterations = 100;
+    int iterations = 40;
     int rcl_size = 2;
-    int local_search_attempts = 100;
+    int local_search_attempts = 480;
 };
 
 struct Problem {
