@@ -14,23 +14,28 @@
 #include <vector>
 
 const std::filesystem::path PROJECT_DIR = std::filesystem::path(__FILE__).parent_path();
+
+//Instancja
 const std::string DEFAULT_INSTANCE_NAME = "cap41_ss.txt";
 
-const int RANDOM_RUNS = 20000;
-const int EA_RUNS = 10;
-const int SA_RUNS = 10;
-const int VNS_RUNS = 10;
-const int GRASP_RUNS = 10;
-
+//Miejsca zapisu
 const std::string SUMMARY_CSV_PATH = (PROJECT_DIR / "summary.csv").string();
 const std::string EA_RUNS_DIR = (PROJECT_DIR / "ea_runs4").string();
 const std::string SA_RUNS_DIR = (PROJECT_DIR / "sa_runs").string();
 const std::string VNS_RUNS_DIR = (PROJECT_DIR / "vns_runs").string();
 const std::string GRASP_RUNS_DIR = (PROJECT_DIR / "grasp_runs").string();
 
+//Flagi
 const bool SAVE_PROGRESS_CSV = true;
 const bool EA_VERBOSE = false;
 const bool DETERMINISTIC_REPAIR_TARGET = true;
+
+//Konfigi
+const int RANDOM_RUNS = 20000;
+const int EA_RUNS = 10;
+const int SA_RUNS = 10;
+const int VNS_RUNS = 10;
+const int GRASP_RUNS = 10;
 
 struct EAConfig {
     int pop_size = 80;
@@ -60,6 +65,8 @@ struct GRASPConfig {
     int local_search_attempts = 480;
 };
 
+
+
 struct Problem {
     int facilities = 0;
     int customers = 0;
@@ -76,7 +83,6 @@ struct Solution {
     std::vector<int> facility_customer_counts;
     double objective_value = -1.0;
 };
-
 
 struct Stats {
     double best = 0.0;
@@ -95,17 +101,10 @@ Stats calculate_stats(const std::vector<double>& values);
 std::vector<double> population_scores(const std::vector<Solution>& population);
 void print_solution(const std::string& name, const Solution& solution);
 void print_stats(const std::string& name, const Stats& stats);
-void summary_row(
-    const std::string& csv_path,
-    const std::string& instance_name,
-    const std::string& method_name,
-    int runs,
-    double best,
-    std::optional<double> worst,
-    std::optional<double> avg,
-    std::optional<double> std,
-    long long time_ms
-);
+void summary_row(const std::string& csv_path, const std::string& instance_name, const std::string& method_name,
+    int runs, double best,
+    std::optional<double> worst, std::optional<double> avg, std::optional<double> std,
+    long long time_ms);
 std::string make_ea_csv_path(const std::string& instance_name, const EAConfig& config, int run_number);
 void create_ea_csv(const std::string& csv_path);
 void ea_progress_row(std::ofstream& csv_output, int generation, const Stats& stats);
@@ -126,16 +125,9 @@ Solution evolutionary_algorithm(const Problem& problem, std::ofstream& csv_outpu
 Solution sa_neighbor(const Problem& problem, const Solution& current, std::mt19937& rng);
 Solution simulated_annealing(const Problem& problem, std::ofstream& csv_output, const SAConfig& config, std::mt19937& rng);
 bool repair_solution(const Problem& problem, Solution& solution, std::mt19937& rng);
-Solution local_search_move_one(
-    const Problem& problem,
-    const Solution& start,
-    int max_attempts,
-    int neighborhood,
-    int& log_iteration,
-    double& best_value,
-    std::ofstream& csv_output,
-    std::mt19937& rng
-);
+Solution local_search_move_one(const Problem& problem, const Solution& start,
+    int max_attempts, int neighborhood, int& log_iteration,
+    double& best_value, std::ofstream& csv_output, std::mt19937& rng);
 bool shake_swap_two(const Problem& problem, Solution& solution, std::mt19937& rng);
 bool shake_move_two(const Problem& problem, Solution& solution, std::mt19937& rng);
 bool shake_partial_facility_reallocation(const Problem& problem, Solution& solution, std::mt19937& rng);
@@ -144,13 +136,8 @@ Solution grasp_construct_solution(const Problem& problem, const GRASPConfig& con
 Solution grasp_algorithm(const Problem& problem, std::ofstream& csv_output, const GRASPConfig& config, std::mt19937& rng);
 void mutate_customer(const Problem& problem, Solution& solution, int customer, std::mt19937& rng);
 void mutate_solution(const Problem& problem, Solution& solution, std::mt19937& rng, double mutation_probability);
-Solution crossover(
-    const Problem& problem,
-    const Solution& parent1,
-    const Solution& parent2,
-    double better_parent_bias,
-    std::mt19937& rng
-);
+Solution crossover(const Problem& problem, const Solution& parent1, const Solution& parent2,
+    double better_parent_bias, std::mt19937& rng);
 
 int main(int argc, char* argv[]) {
     std::string path = (PROJECT_DIR / DEFAULT_INSTANCE_NAME).string();
