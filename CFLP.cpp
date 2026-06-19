@@ -24,6 +24,8 @@ const std::string EA_RUNS_DIR = (PROJECT_DIR / "ea_runs4").string();
 const std::string SA_RUNS_DIR = (PROJECT_DIR / "sa_runs").string();
 const std::string VNS_RUNS_DIR = (PROJECT_DIR / "vns_runs").string();
 const std::string GRASP_RUNS_DIR = (PROJECT_DIR / "grasp_runs").string();
+const std::string ACO_RUNS_DIR = (PROJECT_DIR / "aco_runs").string();
+
 
 //Flagi
 const bool SAVE_PROGRESS_CSV = true;
@@ -36,6 +38,7 @@ const int EA_RUNS = 10;
 const int SA_RUNS = 10;
 const int VNS_RUNS = 10;
 const int GRASP_RUNS = 10;
+const int ACO_RUNS = 10;
 
 struct EAConfig {
     int pop_size = 80;
@@ -63,6 +66,20 @@ struct GRASPConfig {
     int iterations = 40;
     int rcl_size = 2;
     int local_search_attempts = 480;
+};
+struct ACOConfig {
+    int ants = 25;
+    int iterations = 80;
+
+    double alpha = 1.0;
+    double beta = 3.0;
+
+    double evaporation = 0.15;
+
+    double q = 100000.0;
+
+    bool use_local_search = true;
+    int local_search_attempts = 400;
 };
 
 
@@ -100,10 +117,17 @@ Stats calculate_stats(const std::vector<double>& values);
 std::vector<double> population_scores(const std::vector<Solution>& population);
 void print_solution(const std::string& name, const Solution& solution);
 void print_stats(const std::string& name, const Stats& stats);
-void summary_row(const std::string& csv_path, const std::string& instance_name, const std::string& method_name,
-    int runs, double best,
-    std::optional<double> worst, std::optional<double> avg, std::optional<double> std,
-    long long time_ms);
+void summary_row(
+    const std::string& csv_path,
+    const std::string& instance_name,
+    const std::string& method_name,
+    int runs,
+    double best,
+    std::optional<double> worst,
+    std::optional<double> avg,
+    std::optional<double> std,
+    long long time_ms
+);
 std::string make_ea_csv_path(const std::string& instance_name, const EAConfig& config, int run_number);
 void create_ea_csv(const std::string& csv_path);
 void ea_progress_row(std::ofstream& csv_output, int generation, const Stats& stats);
@@ -113,8 +137,117 @@ void sa_progress_row(std::ofstream& csv_output, int iteration, double current_va
 std::string make_vns_csv_path(const std::string& instance_name, const VNSConfig& config, int run_number);
 void create_vns_csv(const std::string& csv_path);
 void vns_progress_row(std::ofstream& csv_output, int iteration, double shaken_value, double after_local_search_value, double best_value);
+
 std::string make_grasp_csv_path(const std::string& instance_name, const GRASPConfig& config, int run_number);
 void create_grasp_csv(const std::string& csv_path);
+std::string make_aco_csv_path(
+    const std::string& instance_name,
+    const ACOConfig& config,
+    int run_number
+);
+
+void create_aco_csv(const std::string& csv_path);
+
+void aco_progress_row(
+    std::ofstream& csv_output,
+    int iteration,
+    double iteration_best,
+    double global_best
+);
+
+Solution aco_construct_solution(
+    const Problem& problem,
+    const std::vector<std::vector<double>>& pheromone,
+    const ACOConfig& config,
+    std::mt19937& rng
+);
+
+Solution ant_colony_optimization(
+    const Problem& problem,
+    std::ofstream& csv_output,
+    const ACOConfig& config,
+    std::mt19937& rng
+)
+{
+    const double tau0 = 1.0;
+
+    std::vector<std::vector<double>> pheromone(
+        problem.customers,
+        std::vector<double>(problem.facilities, tau0)
+    );
+
+    Solution best_global;
+    bool has_best = false;
+
+    for (int iter = 0; iter < config.iterations; ++iter)
+    {
+        std::vector<Solution> ant_solutions;
+
+        double iteration_best = std::numeric_limits<double>::max();
+
+
+        for (int ant = 0; ant < config.ants; ++ant)
+        {
+            Solution current =
+                aco_construct_solution(
+                    problem,
+                    pheromone,
+                    config,
+                    rng
+                );
+
+            ant_solutions.push_back(current);
+
+            if (current.objective_value < iteration_best)
+            {
+                iteration_best = current.objective_value;
+            }
+
+            if (!has_best ||
+                current.objective_value < best_global.objective_value)
+            {
+                best_global = current;
+                has_best = true;
+            }
+        }
+        for (int customer = 0;
+         customer < problem.customers;
+         ++customer)
+    {
+        for (int facility = 0;
+             facility < problem.facilities;
+             ++facility)
+        {
+            pheromone[customer][facility] *=
+                (1.0 - config.evaporation);
+        }
+    }
+    for (const Solution& solution : ant_solutions)
+    {
+        double deposit =
+            config.q / solution.objective_value;
+
+        for (int customer = 0;
+             customer < problem.customers;
+             ++customer)
+        {
+            int facility =
+                solution.customer_assignment[customer];
+
+            pheromone[customer][facility] +=
+                deposit;
+        }
+    }
+        aco_progress_row(
+            csv_output,
+            iter + 1,
+            iteration_best,
+            best_global.objective_value
+        );
+    }
+
+    return best_global;
+}
 void grasp_progress_row(std::ofstream& csv_output, int iteration, double constructed_value, double improved_value, double best_value);
 Solution random_solution(const Problem& problem, std::mt19937& rng);
 Solution greedy_solution(const Problem& problem);
@@ -157,6 +290,7 @@ int main(int argc, char* argv[]) {
     std::cout << "4. algorytm symulowanego wyzarzania\n";
     std::cout << "5. algorytm VNS\n";
     std::cout << "6. algorytm GRASP\n";
+    std::cout << "7. algorytm ACO\n";
     std::cout << "wybor: ";
 
     int method = 0;
@@ -462,6 +596,49 @@ int main(int argc, char* argv[]) {
             );
             print_solution("Najlepsze rozwiazanie GRASP ze wszystkich runow:", best_overall);
             return 0;
+        }
+        case 7: {
+    auto start_time = std::chrono::steady_clock::now();
+    const ACOConfig aco_config;
+    std::vector<double> results;
+    results.reserve(ACO_RUNS);
+    Solution best_overall;
+    bool has_best_solution = false;
+
+    for (int run = 1; run <= ACO_RUNS; ++run) {
+        std::string aco_csv = make_aco_csv_path(instance_name, aco_config, run);
+        create_aco_csv(aco_csv);
+        
+        std::ofstream aco_progress_output(aco_csv, std::ios::app);
+        
+        std::cout << "========== RUN " << run << " ===========\n\n";
+        
+        Solution best = ant_colony_optimization(problem, aco_progress_output, aco_config, rng);
+        results.push_back(best.objective_value);
+        
+        if (!has_best_solution || best.objective_value < best_overall.objective_value) {
+                best_overall = best;
+                has_best_solution = true;
+            }
+        }
+    
+        Stats stats = calculate_stats(results);
+        print_stats("Podsumowanie ACO:", stats);
+        print_solution("Najlepsze rozwiazanie ACO:", best_overall);
+        auto end_time = std::chrono::steady_clock::now();
+        long long elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count(); // 3. Obliczenie czasu
+        summary_row(
+            SUMMARY_CSV_PATH,
+            instance_name,
+            "ACO",
+            ACO_RUNS,
+            stats.best,
+            stats.worst,
+            stats.avg,
+            stats.std,
+            elapsed_ms
+        );
+        return 0;
         }
     }
 
@@ -837,6 +1014,35 @@ void grasp_progress_row(std::ofstream& csv_output, int iteration, double constru
                << improved_value << ','
                << best_value << '\n';
 }
+void create_aco_csv(const std::string& csv_path) {
+    std::ofstream output(csv_path);
+    if (!output) {
+        throw std::runtime_error("Nie udalo sie utworzyc pliku csv: " + csv_path);
+    }
+
+    output << "iteration,best_iteration,best_global";
+}
+std::string make_aco_csv_path(const std::string& instance_name, const ACOConfig& config, int run_number) {
+    std::filesystem::create_directories(ACO_RUNS_DIR);
+
+    std::string file_name = instance_name
+        + "_ants" + std::to_string(config.ants)
+        + "_iter" + std::to_string(config.iterations)
+        + "_run" + std::to_string(run_number)
+        + ".csv";
+
+    return ACO_RUNS_DIR + "/" + file_name;
+}
+void aco_progress_row(std::ofstream& csv_output, int iteration, double iteration_best, double global_best) {
+    if (!csv_output.is_open()) {
+        return;
+    }
+
+    csv_output << iteration << ','
+               << iteration_best << ','
+               << global_best << '\n';
+}
+
 
 Solution random_solution(const Problem& problem, std::mt19937& rng) {
     const int max_attempts = 100;
@@ -1564,7 +1770,113 @@ Solution grasp_construct_solution(const Problem& problem, const GRASPConfig& con
 
     return random_solution(problem, rng);
 }
+Solution aco_construct_solution(
+    const Problem& problem,
+    const std::vector<std::vector<double>>& pheromone,
+    const ACOConfig& config,
+    std::mt19937& rng
+)
+{
+    Solution solution;
+    solution.customer_assignment.assign(problem.customers, -1);
 
+    std::vector<int> remaining_capacity = problem.capacities;
+    std::vector<bool> facility_open(problem.facilities, false);
+
+    std::vector<int> customer_order(problem.customers);
+    std::iota(customer_order.begin(), customer_order.end(), 0);
+
+    std::stable_sort(
+        customer_order.begin(),
+        customer_order.end(),
+        [&problem](int a, int b)
+        {
+            return problem.demands[a] > problem.demands[b];
+        }
+    );
+
+    for (int customer : customer_order)
+    {
+        std::vector<int> candidates;
+        std::vector<double> attractiveness;
+
+        double sum = 0.0;
+
+        for (int facility = 0; facility < problem.facilities; ++facility)
+        {
+            if (remaining_capacity[facility] < problem.demands[customer])
+            {
+                continue;
+            }
+
+            double incremental_cost =
+                problem.assignment_costs[customer][facility];
+
+            if (!facility_open[facility])
+            {
+                incremental_cost +=
+                    problem.opening_costs[facility];
+            }
+
+            double eta =
+                1.0 / (incremental_cost + 1e-9);
+
+            double tau =
+                pheromone[customer][facility];
+
+            double value =
+                std::pow(tau, config.alpha) *
+                std::pow(eta, config.beta);
+
+            candidates.push_back(facility);
+            attractiveness.push_back(value);
+
+            sum += value;
+        }
+
+        if (candidates.empty())
+        {
+            throw std::runtime_error(
+                "ACO: brak dopuszczalnego magazynu."
+            );
+        }
+
+        std::uniform_real_distribution<double>
+            dist(0.0, sum);
+
+        double r = dist(rng);
+
+        int selected_facility = candidates.back();
+
+        double cumulative = 0.0;
+
+        for (size_t i = 0; i < candidates.size(); ++i)
+        {
+            cumulative += attractiveness[i];
+
+            if (r <= cumulative)
+            {
+                selected_facility = candidates[i];
+                break;
+            }
+        }
+
+        solution.customer_assignment[customer] =
+            selected_facility;
+
+        remaining_capacity[selected_facility] -=
+            problem.demands[customer];
+
+        facility_open[selected_facility] = true;
+    }
+
+    update_solution_state(problem, solution);
+
+    solution.objective_value =
+        evaluate_solution(problem, solution);
+
+    return solution;
+}
 Solution grasp_algorithm(const Problem& problem, std::ofstream& csv_output, const GRASPConfig& config, std::mt19937& rng) {
     Solution best_overall;
     bool has_best = false;
